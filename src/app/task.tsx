@@ -17,7 +17,10 @@ import {
 } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import {
+  useLocalSearchParams,
+  useRouter,
+} from 'expo-router';
 
 import { useTasks } from '../context/TaskContext';
 import BottomNav from '../components/BottomNav';
@@ -27,6 +30,8 @@ import { TaskCategory } from '../../types/task';
 export default function TaskScreen() {
   const router = useRouter();
 
+  const params = useLocalSearchParams();
+
   const {
     tasks,
     toggleTask,
@@ -35,12 +40,47 @@ export default function TaskScreen() {
   } = useTasks();
 
   // =====================================================
+  // SUCCESS QUOTE
+  // =====================================================
+
+  const [successQuote, setSuccessQuote] =
+    useState('');
+
+  const [quoteType, setQuoteType] =
+    useState<'updated' | 'deleted' | ''>('');
+
+  useEffect(() => {
+    if (
+      params.success &&
+      params.quote
+    ) {
+      setQuoteType(
+        String(params.success) as
+          | 'updated'
+          | 'deleted'
+      );
+
+      setSuccessQuote(
+        String(params.quote)
+      );
+
+      const timer = setTimeout(() => {
+        setSuccessQuote('');
+        setQuoteType('');
+      }, 4000);
+
+      return () => {
+        clearTimeout(timer);
+      };
+    }
+  }, [params.success, params.quote]);
+
+  // =====================================================
   // REAL-TIME DATE & TIME
   // =====================================================
 
-  const [currentTime, setCurrentTime] = useState(
-    new Date()
-  );
+  const [currentTime, setCurrentTime] =
+    useState(new Date());
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -52,12 +92,13 @@ export default function TaskScreen() {
     };
   }, []);
 
-  const dayName = currentTime.toLocaleDateString(
-    'en-US',
-    {
-      weekday: 'long',
-    }
-  );
+  const dayName =
+    currentTime.toLocaleDateString(
+      'en-US',
+      {
+        weekday: 'long',
+      }
+    );
 
   const formattedDate =
     currentTime.toLocaleDateString(
@@ -87,7 +128,8 @@ export default function TaskScreen() {
   const today = useMemo(() => {
     const date = new Date();
 
-    const year = date.getFullYear();
+    const year =
+      date.getFullYear();
 
     const month = String(
       date.getMonth() + 1
@@ -145,16 +187,38 @@ export default function TaskScreen() {
   ];
 
   // =====================================================
+  // SHOW QUOTE
+  // =====================================================
+
+  const showQuote = (
+    type: 'updated' | 'deleted',
+    quote: string
+  ) => {
+    setQuoteType(type);
+    setSuccessQuote(quote);
+
+    setTimeout(() => {
+      setSuccessQuote('');
+      setQuoteType('');
+    }, 4000);
+  };
+
+  // =====================================================
   // DELETE TASK
   // =====================================================
 
-  const confirmDelete = (id: string) => {
+  const confirmDelete = (
+    id: string
+  ) => {
     console.log(
       'Delete button pressed. Task ID:',
       id
     );
 
-    // Web browser
+    // =================================================
+    // WEB BROWSER
+    // =================================================
+
     if (Platform.OS === 'web') {
       const confirmed =
         window.confirm(
@@ -168,12 +232,20 @@ export default function TaskScreen() {
         );
 
         deleteTask(id);
+
+        showQuote(
+          'deleted',
+          '🗑️ One less task, one more step toward a lighter and more productive day.'
+        );
       }
 
       return;
     }
 
-    // Android / iOS
+    // =================================================
+    // ANDROID / IOS
+    // =================================================
+
     Alert.alert(
       'Delete Task',
       'Are you sure you want to delete this task?',
@@ -182,9 +254,11 @@ export default function TaskScreen() {
           text: 'Cancel',
           style: 'cancel',
         },
+
         {
           text: 'Delete',
           style: 'destructive',
+
           onPress: () => {
             console.log(
               'Deleting task:',
@@ -192,6 +266,11 @@ export default function TaskScreen() {
             );
 
             deleteTask(id);
+
+            showQuote(
+              'deleted',
+              '🗑️ One less task, one more step toward a lighter and more productive day.'
+            );
           },
         },
       ]
@@ -234,7 +313,9 @@ export default function TaskScreen() {
   // =====================================================
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView
+      style={styles.container}
+    >
 
       {/* =================================================
           HEADER
@@ -243,24 +324,29 @@ export default function TaskScreen() {
       <View style={styles.header}>
 
         <View>
+
           <Text style={styles.small}>
-            Today's Flow 
+            Today's Flow
           </Text>
 
           {/* REAL DAY */}
+
           <Text style={styles.title}>
             {dayName}
           </Text>
 
           {/* REAL TIME */}
+
           <Text style={styles.liveTime}>
             {formattedTime}
           </Text>
 
           {/* REAL DATE */}
+
           <Text style={styles.liveDate}>
             {formattedDate}
           </Text>
+
         </View>
 
         <TouchableOpacity
@@ -282,11 +368,74 @@ export default function TaskScreen() {
       ================================================= */}
 
       <ScrollView
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={
+          false
+        }
         contentContainerStyle={
           styles.content
         }
       >
+
+        {/* =================================================
+            SUCCESS QUOTE
+        ================================================= */}
+
+        {successQuote ? (
+          <View
+            style={[
+              styles.quoteCard,
+
+              quoteType === 'deleted'
+                ? styles.deleteQuoteCard
+                : styles.updateQuoteCard,
+            ]}
+          >
+
+            <View
+              style={[
+                styles.quoteIcon,
+                quoteType === 'deleted'
+                  ? styles.deleteQuoteIcon
+                  : styles.updateQuoteIcon,
+              ]}
+            >
+              <Ionicons
+                name={
+                  quoteType === 'deleted'
+                    ? 'trash-outline'
+                    : 'sparkles-outline'
+                }
+                size={23}
+                color={
+                  quoteType === 'deleted'
+                    ? '#EF4444'
+                    : '#126EED'
+                }
+              />
+            </View>
+
+            <View
+              style={styles.quoteContent}
+            >
+
+              <Text
+                style={styles.quoteHeading}
+              >
+                {quoteType === 'deleted'
+                  ? 'Task Removed'
+                  : 'Great Progress!'}
+              </Text>
+
+              <Text
+                style={styles.quoteText}
+              >
+                {successQuote}
+              </Text>
+
+            </View>
+
+          </View>
+        ) : null}
 
         {/* =================================================
             SAVED TASKS
@@ -297,6 +446,7 @@ export default function TaskScreen() {
           onPress={openSavedTasks}
           activeOpacity={0.8}
         >
+
           <View style={styles.savedIcon}>
             <Ionicons
               name="bookmark"
@@ -306,11 +456,14 @@ export default function TaskScreen() {
           </View>
 
           <View style={styles.savedInfo}>
+
             <Text style={styles.cardTitle}>
               Saved Tasks
             </Text>
 
-            <Text style={styles.cardSubtitle}>
+            <Text
+              style={styles.cardSubtitle}
+            >
               {
                 tasks.filter(
                   (task) => task.saved
@@ -318,6 +471,7 @@ export default function TaskScreen() {
               }{' '}
               important tasks
             </Text>
+
           </View>
 
           <Ionicons
@@ -325,17 +479,23 @@ export default function TaskScreen() {
             size={21}
             color="#999999"
           />
+
         </TouchableOpacity>
 
         {/* =================================================
             CATEGORIES
         ================================================= */}
 
-        <Text style={styles.sectionTitle}>
+        <Text
+          style={styles.sectionTitle}
+        >
           Categories
         </Text>
 
-        <View style={styles.categoryGrid}>
+        <View
+          style={styles.categoryGrid}
+        >
+
           {categories.map(
             (category) => (
               <TouchableOpacity
@@ -350,6 +510,7 @@ export default function TaskScreen() {
                 }
                 activeOpacity={0.8}
               >
+
                 <View
                   style={
                     styles.categoryIcon
@@ -371,25 +532,37 @@ export default function TaskScreen() {
                 >
                   {category.name}
                 </Text>
+
               </TouchableOpacity>
             )
           )}
+
         </View>
 
         {/* =================================================
             TODAY TASK HEADER
         ================================================= */}
 
-        <View style={styles.taskHeader}>
-          <Text style={styles.sectionTitle}>
+        <View
+          style={styles.taskHeader}
+        >
+
+          <Text
+            style={styles.sectionTitle}
+          >
             Today's Tasks
           </Text>
 
-          <View style={styles.countContainer}>
-            <Text style={styles.count}>
+          <View
+            style={styles.countContainer}
+          >
+            <Text
+              style={styles.count}
+            >
               {todayTasks.length}
             </Text>
           </View>
+
         </View>
 
         {/* =================================================
@@ -397,6 +570,7 @@ export default function TaskScreen() {
         ================================================= */}
 
         {todayTasks.length === 0 ? (
+
           <View style={styles.empty}>
 
             <Ionicons
@@ -421,10 +595,13 @@ export default function TaskScreen() {
             </Text>
 
             <TouchableOpacity
-              style={styles.emptyAddButton}
+              style={
+                styles.emptyAddButton
+              }
               onPress={openAddTask}
               activeOpacity={0.8}
             >
+
               <Ionicons
                 name="add"
                 size={18}
@@ -438,9 +615,11 @@ export default function TaskScreen() {
               >
                 Add Task
               </Text>
+
             </TouchableOpacity>
 
           </View>
+
         ) : (
 
           /* =================================================
@@ -448,6 +627,7 @@ export default function TaskScreen() {
           ================================================= */
 
           todayTasks.map((task) => (
+
             <View
               key={task.id}
               style={[
@@ -460,12 +640,15 @@ export default function TaskScreen() {
               {/* COMPLETE BUTTON */}
 
               <TouchableOpacity
-                style={styles.completeButton}
+                style={
+                  styles.completeButton
+                }
                 onPress={() =>
                   toggleTask(task.id)
                 }
                 activeOpacity={0.7}
               >
+
                 <Ionicons
                   name={
                     task.completed
@@ -479,11 +662,14 @@ export default function TaskScreen() {
                       : '#B8BDC6'
                   }
                 />
+
               </TouchableOpacity>
 
               {/* TASK INFORMATION */}
 
-              <View style={styles.taskInfo}>
+              <View
+                style={styles.taskInfo}
+              >
 
                 <Text
                   style={[
@@ -499,8 +685,11 @@ export default function TaskScreen() {
                 <View
                   style={styles.metaRow}
                 >
+
                   <Text
-                    style={styles.taskMeta}
+                    style={
+                      styles.taskMeta
+                    }
                   >
                     {task.category}
                   </Text>
@@ -524,6 +713,7 @@ export default function TaskScreen() {
                       </Text>
                     </>
                   ) : null}
+
                 </View>
 
               </View>
@@ -531,7 +721,9 @@ export default function TaskScreen() {
               {/* SAVE BUTTON */}
 
               <TouchableOpacity
-                style={styles.actionButton}
+                style={
+                  styles.actionButton
+                }
                 onPress={() =>
                   toggleSavedTask(
                     task.id
@@ -539,6 +731,7 @@ export default function TaskScreen() {
                 }
                 activeOpacity={0.7}
               >
+
                 <Ionicons
                   name={
                     task.saved
@@ -548,6 +741,7 @@ export default function TaskScreen() {
                   size={21}
                   color="#126EED"
                 />
+
               </TouchableOpacity>
 
               {/* DELETE BUTTON */}
@@ -564,20 +758,25 @@ export default function TaskScreen() {
                 }
                 activeOpacity={0.7}
               >
+
                 <Ionicons
                   name="trash-outline"
                   size={21}
                   color="#F04444"
                 />
+
               </TouchableOpacity>
 
             </View>
+
           ))
         )}
 
         {/* Bottom spacing */}
 
-        <View style={styles.bottomSpace} />
+        <View
+          style={styles.bottomSpace}
+        />
 
       </ScrollView>
 
@@ -660,6 +859,74 @@ const styles = StyleSheet.create({
   content: {
     padding: 18,
     paddingBottom: 30,
+  },
+
+  // =====================================================
+  // SUCCESS QUOTE
+  // =====================================================
+
+  quoteCard: {
+    borderRadius: 20,
+    padding: 15,
+    marginBottom: 15,
+    flexDirection: 'row',
+    alignItems: 'center',
+
+    borderWidth: 1,
+
+    elevation: 3,
+
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+  },
+
+  updateQuoteCard: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
+  },
+
+  deleteQuoteCard: {
+    backgroundColor: '#FFF7F7',
+    borderColor: '#FECACA',
+  },
+
+  quoteIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 13,
+  },
+
+  updateQuoteIcon: {
+    backgroundColor: '#DBEAFE',
+  },
+
+  deleteQuoteIcon: {
+    backgroundColor: '#FEE2E2',
+  },
+
+  quoteContent: {
+    flex: 1,
+  },
+
+  quoteHeading: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#111827',
+    marginBottom: 4,
+  },
+
+  quoteText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: '#4B5563',
+    fontWeight: '600',
   },
 
   // =====================================================
@@ -901,4 +1168,5 @@ const styles = StyleSheet.create({
   bottomSpace: {
     height: 20,
   },
+
 });

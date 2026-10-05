@@ -22,7 +22,10 @@ import {
 
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import {
+  useLocalSearchParams,
+  useRouter,
+} from 'expo-router';
 
 import { TaskCategory } from '../../types/task';
 import { useTaskContext } from '../context/TaskContext';
@@ -253,7 +256,8 @@ const normalizeSubtasks = (value: any): string[] => {
   return value
     .map(getSubtaskText)
     .filter(
-      (item: string) => item.trim().length > 0
+      (item: string) =>
+        item.trim().length > 0
     );
 };
 
@@ -320,10 +324,6 @@ export default function TaskDetails() {
   const [reminderEnabled, setReminderEnabled] =
     useState(false);
 
-  /*
-   * IMPORTANT:
-   * Subtasks are always maintained as string[] here.
-   */
   const [subtasks, setSubtasks] =
     useState<string[]>([]);
 
@@ -374,15 +374,6 @@ export default function TaskDetails() {
       Boolean(task.reminderEnabled)
     );
 
-    /*
-     * SAFE SUBTASK HANDLING
-     *
-     * This prevents errors if subtasks are:
-     * - string[]
-     * - object[]
-     * - undefined
-     * - null
-     */
     const safeSubtasks = normalizeSubtasks(
       (task as any).subtasks
     );
@@ -599,7 +590,7 @@ export default function TaskDetails() {
   };
 
   /* =======================================================
-     SAVE TASK
+     SAVE / UPDATE TASK
   ======================================================= */
 
   const handleSave = async () => {
@@ -619,48 +610,35 @@ export default function TaskDetails() {
     try {
       setSaving(true);
 
-      /*
-       * We intentionally use `as any` for the
-       * update object because different versions
-       * of the Task type may define subtasks
-       * differently.
-       *
-       * The actual stored value remains string[].
-       */
-
       await updateTask(
         String(task.id),
         {
           title: title.trim(),
-
           category,
-
           date,
-
           time,
-
           notes: notes.trim(),
-
           completed,
-
           reminderEnabled,
-
           subtasks: subtasks as any,
         } as any
       );
 
-      Alert.alert(
-        'Task Updated',
-        'Your task has been updated successfully.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              router.back();
-            },
-          },
-        ]
-      );
+      /*
+       * IMPORTANT:
+       * Instead of router.back(), send the user
+       * back to the Task page with a success quote.
+       */
+
+      router.replace({
+        pathname: '/task',
+        params: {
+          success: 'updated',
+          quote:
+            '✨ Small progress today becomes a big achievement tomorrow.',
+        },
+      });
+
     } catch (error) {
       console.error(
         'Update task error:',
@@ -706,7 +684,21 @@ export default function TaskDetails() {
                 String(task.id)
               );
 
-              router.back();
+              /*
+               * IMPORTANT:
+               * After deletion, go to Task page
+               * and show a different quote.
+               */
+
+              router.replace({
+                pathname: '/task',
+                params: {
+                  success: 'deleted',
+                  quote:
+                    '🗑️ One less task. One more step toward a lighter day.',
+                },
+              });
+
             } catch (error) {
               console.error(
                 'Delete task error:',
@@ -1503,6 +1495,7 @@ export default function TaskDetails() {
 ========================================================= */
 
 const styles = StyleSheet.create({
+
   container: {
     flex: 1,
     backgroundColor: '#F7F9FC',
@@ -1994,4 +1987,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
   },
+
 });

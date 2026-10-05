@@ -12,12 +12,16 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Task } from '../../types/task';
 
 
+// =========================================================
+// STORAGE KEY
+// =========================================================
+
 const TASK_STORAGE_KEY = 'smart_todo_tasks';
 
 
-/* =========================================================
-   CONTEXT TYPE
-========================================================= */
+// =========================================================
+// CONTEXT TYPE
+// =========================================================
 
 interface TaskContextType {
   tasks: Task[];
@@ -29,21 +33,29 @@ interface TaskContextType {
     updates: Partial<Task>
   ) => Promise<void>;
 
-  deleteTask: (id: string) => Promise<void>;
+  deleteTask: (
+    id: string
+  ) => Promise<void>;
 
-  toggleTask: (id: string) => Promise<void>;
+  toggleTask: (
+    id: string
+  ) => Promise<void>;
 
-  toggleSavedTask: (id: string) => Promise<void>;
+  toggleSavedTask: (
+    id: string
+  ) => Promise<void>;
 
-  getTaskById: (id: string) => Task | undefined;
+  getTaskById: (
+    id: string
+  ) => Task | undefined;
 
   clearTasks: () => Promise<void>;
 }
 
 
-/* =========================================================
-   CONTEXT
-========================================================= */
+// =========================================================
+// CONTEXT
+// =========================================================
 
 const TaskContext =
   createContext<TaskContextType | undefined>(
@@ -51,9 +63,9 @@ const TaskContext =
   );
 
 
-/* =========================================================
-   PROVIDER
-========================================================= */
+// =========================================================
+// PROVIDER
+// =========================================================
 
 export function TaskProvider({
   children,
@@ -66,9 +78,9 @@ export function TaskProvider({
   const [loaded, setLoaded] = useState(false);
 
 
-  /* =======================================================
-     LOAD TASKS
-  ======================================================= */
+  // =======================================================
+  // LOAD TASKS
+  // =======================================================
 
   useEffect(() => {
     loadTasks();
@@ -106,6 +118,7 @@ export function TaskProvider({
 
       const cleaned: Task[] =
         parsed.map((item: any) => ({
+
           ...item,
 
           id: String(
@@ -125,21 +138,30 @@ export function TaskProvider({
             item.time ?? '',
 
           completed:
-            Boolean(item.completed),
+            Boolean(
+              item.completed
+            ),
 
           reminderEnabled:
-            Boolean(item.reminderEnabled),
+            Boolean(
+              item.reminderEnabled
+            ),
 
           notes:
             item.notes ?? '',
 
           subtasks:
-            Array.isArray(item.subtasks)
+            Array.isArray(
+              item.subtasks
+            )
               ? item.subtasks
               : [],
 
           saved:
-            Boolean(item.saved),
+            Boolean(
+              item.saved
+            ),
+
         }));
 
 
@@ -147,7 +169,7 @@ export function TaskProvider({
 
     } catch (error) {
 
-      console.log(
+      console.error(
         'Task loading error:',
         error
       );
@@ -162,9 +184,9 @@ export function TaskProvider({
   };
 
 
-  /* =======================================================
-     SAVE
-  ======================================================= */
+  // =======================================================
+  // SAVE TASKS
+  // =======================================================
 
   const saveTasks = async (
     updatedTasks: Task[]
@@ -172,130 +194,271 @@ export function TaskProvider({
 
     await AsyncStorage.setItem(
       TASK_STORAGE_KEY,
-      JSON.stringify(updatedTasks)
+      JSON.stringify(
+        updatedTasks
+      )
     );
   };
 
 
-  /* =======================================================
-     ADD TASK
-  ======================================================= */
+  // =======================================================
+  // ADD TASK
+  // =======================================================
 
   const addTask = async (
     task: Task
   ) => {
 
-    const newTask: Task = {
-      ...task,
+    try {
 
-      id: task.id
-        ? String(task.id)
-        : Date.now().toString(),
+      const newTask: Task = {
 
-      title:
-        task.title ?? '',
+        ...task,
 
-      category:
-        task.category ?? 'Personal',
+        id: task.id
+          ? String(task.id)
+          : Date.now().toString(),
 
-      date:
-        task.date ?? '',
+        title:
+          task.title ?? '',
 
-      time:
-        task.time ?? '',
+        category:
+          task.category ?? 'Personal',
 
-      completed:
-        Boolean(task.completed),
+        date:
+          task.date ?? '',
 
-      reminderEnabled:
-        Boolean(task.reminderEnabled),
+        time:
+          task.time ?? '',
 
-      notes:
-        task.notes ?? '',
+        completed:
+          Boolean(
+            task.completed
+          ),
 
-      subtasks:
-        Array.isArray(task.subtasks)
-          ? task.subtasks
-          : [],
+        reminderEnabled:
+          Boolean(
+            task.reminderEnabled
+          ),
 
-      saved:
-        Boolean(
-          (task as any).saved
-        ),
-    };
+        notes:
+          task.notes ?? '',
+
+        subtasks:
+          Array.isArray(
+            task.subtasks
+          )
+            ? task.subtasks
+            : [],
+
+        saved:
+          Boolean(
+            (task as any).saved
+          ),
+
+      };
 
 
-    const updatedTasks = [
-      ...tasks,
-      newTask,
-    ];
+      const updatedTasks = [
+        ...tasks,
+        newTask,
+      ];
 
 
-    setTasks(updatedTasks);
+      setTasks(
+        updatedTasks
+      );
 
-    await saveTasks(updatedTasks);
+      await saveTasks(
+        updatedTasks
+      );
+
+    } catch (error) {
+
+      console.error(
+        'Add task error:',
+        error
+      );
+
+      throw error;
+    }
   };
 
 
-  /* =======================================================
-     UPDATE TASK
-  ======================================================= */
+  // =======================================================
+  // UPDATE TASK
+  // =======================================================
 
   const updateTask = async (
     id: string,
     updates: Partial<Task>
   ) => {
 
-    const updatedTasks =
-      tasks.map((task) => {
+    try {
 
-        if (
-          String(task.id) !==
-          String(id)
-        ) {
-          return task;
-        }
+      const updatedTasks =
+        tasks.map((task) => {
 
+          if (
+            String(task.id) !==
+            String(id)
+          ) {
 
-        return {
-          ...task,
-          ...updates,
-        };
-
-      });
+            return task;
+          }
 
 
-    setTasks(updatedTasks);
+          return {
+            ...task,
+            ...updates,
+          };
 
-    await saveTasks(updatedTasks);
+        });
+
+
+      setTasks(
+        updatedTasks
+      );
+
+      await saveTasks(
+        updatedTasks
+      );
+
+    } catch (error) {
+
+      console.error(
+        'Update task error:',
+        error
+      );
+
+      throw error;
+    }
   };
 
 
-  /* =======================================================
-     DELETE TASK
-  ======================================================= */
+  // =======================================================
+  // DELETE TASK
+  // =======================================================
 
   const deleteTask = async (
     id: string
   ) => {
 
-    const updatedTasks =
-      tasks.filter(
-        (task) =>
-          String(task.id) !==
-          String(id)
+    try {
+
+      const taskId =
+        String(id);
+
+
+      // ---------------------------------------------------
+      // Read the latest tasks from AsyncStorage.
+      // This prevents deleting from an outdated state.
+      // ---------------------------------------------------
+
+      const storedTasks =
+        await AsyncStorage.getItem(
+          TASK_STORAGE_KEY
+        );
+
+
+      let currentTasks: Task[] = [];
+
+
+      if (storedTasks) {
+
+        try {
+
+          const parsed =
+            JSON.parse(
+              storedTasks
+            );
+
+
+          if (
+            Array.isArray(parsed)
+          ) {
+
+            currentTasks =
+              parsed;
+
+          } else {
+
+            currentTasks =
+              tasks;
+
+          }
+
+        } catch (error) {
+
+          console.error(
+            'Storage parse error:',
+            error
+          );
+
+          currentTasks =
+            tasks;
+        }
+
+      } else {
+
+        currentTasks =
+          tasks;
+      }
+
+
+      // ---------------------------------------------------
+      // Remove selected task
+      // ---------------------------------------------------
+
+      const updatedTasks =
+        currentTasks.filter(
+          (task) =>
+            String(task.id) !==
+            taskId
+        );
+
+
+      // ---------------------------------------------------
+      // Update React state
+      // ---------------------------------------------------
+
+      setTasks(
+        updatedTasks
       );
 
 
-    setTasks(updatedTasks);
+      // ---------------------------------------------------
+      // Update AsyncStorage
+      // ---------------------------------------------------
 
-    await saveTasks(updatedTasks);
+      await AsyncStorage.setItem(
+        TASK_STORAGE_KEY,
+        JSON.stringify(
+          updatedTasks
+        )
+      );
+
+
+      console.log(
+        'Task deleted successfully:',
+        taskId
+      );
+
+    } catch (error) {
+
+      console.error(
+        'Delete task error:',
+        error
+      );
+
+      throw error;
+    }
   };
 
 
-  /* =======================================================
-     TOGGLE COMPLETED
-  ======================================================= */
+  // =======================================================
+  // TOGGLE COMPLETED
+  // =======================================================
 
   const toggleTask = async (
     id: string
@@ -310,6 +473,7 @@ export function TaskProvider({
 
 
     if (!task) {
+
       return;
     }
 
@@ -324,42 +488,45 @@ export function TaskProvider({
   };
 
 
-  /* =======================================================
-     TOGGLE SAVED
-  ======================================================= */
+  // =======================================================
+  // TOGGLE SAVED
+  // =======================================================
 
-  const toggleSavedTask = async (
-    id: string
-  ) => {
+  const toggleSavedTask =
+    async (
+      id: string
+    ) => {
 
-    const task =
-      tasks.find(
-        (item) =>
-          String(item.id) ===
-          String(id)
-      );
-
-
-    if (!task) {
-      return;
-    }
+      const task =
+        tasks.find(
+          (item) =>
+            String(item.id) ===
+            String(id)
+        );
 
 
-    await updateTask(
-      id,
-      {
-        saved:
-          !Boolean(
-            (task as any).saved
-          ),
+      if (!task) {
+
+        return;
       }
-    );
-  };
 
 
-  /* =======================================================
-     GET TASK
-  ======================================================= */
+      await updateTask(
+        id,
+        {
+          saved:
+            !Boolean(
+              (task as any)
+                .saved
+            ),
+        }
+      );
+    };
+
+
+  // =======================================================
+  // GET TASK BY ID
+  // =======================================================
 
   const getTaskById = (
     id: string
@@ -373,23 +540,35 @@ export function TaskProvider({
   };
 
 
-  /* =======================================================
-     CLEAR ALL
-  ======================================================= */
+  // =======================================================
+  // CLEAR ALL TASKS
+  // =======================================================
 
   const clearTasks = async () => {
 
-    setTasks([]);
+    try {
 
-    await AsyncStorage.removeItem(
-      TASK_STORAGE_KEY
-    );
+      setTasks([]);
+
+      await AsyncStorage.removeItem(
+        TASK_STORAGE_KEY
+      );
+
+    } catch (error) {
+
+      console.error(
+        'Clear tasks error:',
+        error
+      );
+
+      throw error;
+    }
   };
 
 
-  /* =======================================================
-     PROVIDER
-  ======================================================= */
+  // =======================================================
+  // PROVIDER
+  // =======================================================
 
   if (!loaded) {
 
@@ -400,33 +579,48 @@ export function TaskProvider({
   return (
     <TaskContext.Provider
       value={{
+
         tasks,
+
         addTask,
+
         updateTask,
+
         deleteTask,
+
         toggleTask,
+
         toggleSavedTask,
+
         getTaskById,
+
         clearTasks,
+
       }}
     >
+
       {children}
+
     </TaskContext.Provider>
   );
 }
 
 
-/* =========================================================
-   useTasks
-========================================================= */
+// =========================================================
+// useTasks
+// =========================================================
 
 export function useTasks() {
 
   const context =
-    useContext(TaskContext);
+    useContext(
+      TaskContext
+    );
 
 
-  if (context === undefined) {
+  if (
+    context === undefined
+  ) {
 
     throw new Error(
       'useTasks must be used inside TaskProvider'
@@ -438,17 +632,21 @@ export function useTasks() {
 }
 
 
-/* =========================================================
-   useTaskContext
-========================================================= */
+// =========================================================
+// useTaskContext
+// =========================================================
 
 export function useTaskContext() {
 
   const context =
-    useContext(TaskContext);
+    useContext(
+      TaskContext
+    );
 
 
-  if (context === undefined) {
+  if (
+    context === undefined
+  ) {
 
     throw new Error(
       'useTaskContext must be used inside TaskProvider'
@@ -460,9 +658,9 @@ export function useTaskContext() {
 }
 
 
-/* =========================================================
-   DEFAULT EXPORT
-========================================================= */
+// =========================================================
+// DEFAULT EXPORT
+// =========================================================
 
 export default TaskContext;
 

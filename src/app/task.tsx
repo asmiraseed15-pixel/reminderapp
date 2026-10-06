@@ -285,7 +285,6 @@ export default function TaskScreen() {
     setTimeout(() => {
 
       setSuccessQuote('');
-
       setQuoteType('');
 
     }, 4000);
@@ -463,6 +462,20 @@ export default function TaskScreen() {
         },
 
       });
+
+    };
+
+
+  // =====================================================
+  // OPEN STEP COUNTER
+  // =====================================================
+
+  const openSteps =
+    () => {
+
+      router.push(
+        '/steps'
+      );
 
     };
 
@@ -686,6 +699,188 @@ export default function TaskScreen() {
             size={21}
             color="#999999"
           />
+
+        </TouchableOpacity>
+
+
+        {/* =================================================
+            HEALTH / FITNESS
+        ================================================= */}
+
+        <Text
+          style={
+            styles.sectionTitle
+          }
+        >
+          Wellness
+        </Text>
+
+
+        <TouchableOpacity
+          style={styles.stepsCard}
+          onPress={openSteps}
+          activeOpacity={0.85}
+        >
+
+          <View
+            style={styles.stepsIcon}
+          >
+
+            <Ionicons
+              name="footsteps"
+              size={28}
+              color="#126EED"
+            />
+
+          </View>
+
+
+          <View
+            style={styles.stepsInfo}
+          >
+
+            <View
+              style={
+                styles.stepsTitleRow
+              }
+            >
+
+              <Text
+                style={
+                  styles.stepsTitle
+                }
+              >
+                Step Counter
+              </Text>
+
+
+              <View
+                style={
+                  styles.liveBadge
+                }
+              >
+
+                <View
+                  style={
+                    styles.liveDot
+                  }
+                />
+
+                <Text
+                  style={
+                    styles.liveBadgeText
+                  }
+                >
+                  LIVE
+                </Text>
+
+              </View>
+
+            </View>
+
+
+            <Text
+              style={
+                styles.stepsSubtitle
+              }
+            >
+              Track your daily steps,
+              calories and distance
+            </Text>
+
+
+            <View
+              style={
+                styles.miniStats
+              }
+            >
+
+              <View
+                style={
+                  styles.miniStat
+                }
+              >
+
+                <Ionicons
+                  name="footsteps-outline"
+                  size={15}
+                  color="#126EED"
+                />
+
+                <Text
+                  style={
+                    styles.miniStatText
+                  }
+                >
+                  Steps
+                </Text>
+
+              </View>
+
+
+              <View
+                style={
+                  styles.miniStat
+                }
+              >
+
+                <Ionicons
+                  name="flame-outline"
+                  size={15}
+                  color="#F97316"
+                />
+
+                <Text
+                  style={
+                    styles.miniStatText
+                  }
+                >
+                  Calories
+                </Text>
+
+              </View>
+
+
+              <View
+                style={
+                  styles.miniStat
+                }
+              >
+
+                <Ionicons
+                  name="navigate-outline"
+                  size={15}
+                  color="#10B981"
+                />
+
+                <Text
+                  style={
+                    styles.miniStatText
+                  }
+                >
+                  Distance
+                </Text>
+
+              </View>
+
+            </View>
+
+          </View>
+
+
+          <View
+            style={
+              styles.stepsArrow
+            }
+          >
+
+            <Ionicons
+              name="chevron-forward"
+              size={22}
+              color="#126EED"
+            />
+
+          </View>
 
         </TouchableOpacity>
 
@@ -1330,6 +1525,185 @@ const styles =
 
 
     // ===================================================
+    // WELLNESS / STEPS
+    // ===================================================
+
+    stepsCard: {
+      backgroundColor:
+        '#FFFFFF',
+
+      borderRadius: 22,
+
+      padding: 16,
+
+      flexDirection: 'row',
+
+      alignItems: 'center',
+
+      elevation: 3,
+
+      shadowColor: '#000',
+
+      shadowOpacity: 0.06,
+
+      shadowRadius: 8,
+
+      shadowOffset: {
+        width: 0,
+        height: 3,
+      },
+
+      borderWidth: 1,
+
+      borderColor: '#E5EDFA',
+    },
+
+
+    stepsIcon: {
+      width: 58,
+
+      height: 58,
+
+      borderRadius: 18,
+
+      backgroundColor:
+        '#EAF3FF',
+
+      alignItems: 'center',
+
+      justifyContent:
+        'center',
+
+      marginRight: 13,
+    },
+
+
+    stepsInfo: {
+      flex: 1,
+    },
+
+
+    stepsTitleRow: {
+      flexDirection: 'row',
+
+      alignItems: 'center',
+
+      justifyContent: 'space-between',
+    },
+
+
+    stepsTitle: {
+      fontSize: 16,
+
+      fontWeight: '900',
+
+      color: '#111827',
+    },
+
+
+    liveBadge: {
+      flexDirection: 'row',
+
+      alignItems: 'center',
+
+      backgroundColor:
+        '#ECFDF5',
+
+      borderRadius: 8,
+
+      paddingHorizontal: 7,
+
+      paddingVertical: 4,
+
+      marginLeft: 5,
+    },
+
+
+    liveDot: {
+      width: 6,
+
+      height: 6,
+
+      borderRadius: 3,
+
+      backgroundColor:
+        '#22C55E',
+
+      marginRight: 4,
+    },
+
+
+    liveBadgeText: {
+      fontSize: 8,
+
+      fontWeight: '900',
+
+      color: '#16A34A',
+
+      letterSpacing: 0.5,
+    },
+
+
+    stepsSubtitle: {
+      fontSize: 11,
+
+      color: '#7A8494',
+
+      marginTop: 4,
+
+      lineHeight: 16,
+    },
+
+
+    miniStats: {
+      flexDirection: 'row',
+
+      alignItems: 'center',
+
+      marginTop: 9,
+
+      gap: 10,
+    },
+
+
+    miniStat: {
+      flexDirection: 'row',
+
+      alignItems: 'center',
+    },
+
+
+    miniStatText: {
+      fontSize: 9,
+
+      color: '#7A8494',
+
+      fontWeight: '700',
+
+      marginLeft: 3,
+    },
+
+
+    stepsArrow: {
+      width: 34,
+
+      height: 34,
+
+      borderRadius: 11,
+
+      backgroundColor:
+        '#F1F6FF',
+
+      alignItems: 'center',
+
+      justifyContent:
+        'center',
+
+      marginLeft: 7,
+    },
+
+
+    // ===================================================
     // SECTION
     // ===================================================
 
@@ -1638,4 +2012,3 @@ const styles =
     },
 
   });
-

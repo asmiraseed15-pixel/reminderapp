@@ -26,7 +26,9 @@ const TASK_STORAGE_KEY = 'smart_todo_tasks';
 interface TaskContextType {
   tasks: Task[];
 
-  addTask: (task: Task) => Promise<void>;
+  addTask: (
+    task: Task
+  ) => Promise<void>;
 
   updateTask: (
     id: string,
@@ -49,6 +51,12 @@ interface TaskContextType {
     id: string
   ) => Task | undefined;
 
+  getTasksByCategory: (
+    category: string
+  ) => Task[];
+
+  clearCompletedTasks: () => Promise<void>;
+
   clearTasks: () => Promise<void>;
 }
 
@@ -64,6 +72,137 @@ const TaskContext =
 
 
 // =========================================================
+// NORMALIZE TASK
+// =========================================================
+
+const normalizeTask = (
+  task: any
+): Task => {
+
+  return {
+    ...task,
+
+    // -----------------------------------------------------
+    // ID
+    // -----------------------------------------------------
+
+    id: String(
+      task?.id ??
+      `${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2)}`
+    ),
+
+    // -----------------------------------------------------
+    // TITLE
+    // -----------------------------------------------------
+
+    title:
+      typeof task?.title === 'string'
+        ? task.title
+        : '',
+
+    // -----------------------------------------------------
+    // CATEGORY
+    // -----------------------------------------------------
+
+    category:
+      task?.category ??
+      'Personal',
+
+    // -----------------------------------------------------
+    // PRIORITY
+    // -----------------------------------------------------
+
+    priority:
+      task?.priority ??
+      'Medium',
+
+    // -----------------------------------------------------
+    // DATE
+    // -----------------------------------------------------
+
+    date:
+      typeof task?.date === 'string'
+        ? task.date
+        : '',
+
+    // -----------------------------------------------------
+    // TIME
+    // -----------------------------------------------------
+
+    time:
+      typeof task?.time === 'string'
+        ? task.time
+        : '',
+
+    // -----------------------------------------------------
+    // COMPLETED
+    // -----------------------------------------------------
+
+    completed:
+      Boolean(
+        task?.completed
+      ),
+
+    // -----------------------------------------------------
+    // REMINDER
+    // -----------------------------------------------------
+
+    reminderEnabled:
+      Boolean(
+        task?.reminderEnabled
+      ),
+
+    reminderTime:
+      task?.reminderTime ??
+      undefined,
+
+    reminderNotificationId:
+      task?.reminderNotificationId ??
+      undefined,
+
+    // -----------------------------------------------------
+    // NOTES
+    // -----------------------------------------------------
+
+    notes:
+      typeof task?.notes === 'string'
+        ? task.notes
+        : '',
+
+    // -----------------------------------------------------
+    // SUBTASKS
+    // -----------------------------------------------------
+
+    subtasks:
+      Array.isArray(
+        task?.subtasks
+      )
+        ? task.subtasks
+        : [],
+
+    // -----------------------------------------------------
+    // SAVED
+    // -----------------------------------------------------
+
+    saved:
+      Boolean(
+        task?.saved
+      ),
+
+    // -----------------------------------------------------
+    // CREATED DATE
+    // -----------------------------------------------------
+
+    createdAt:
+      task?.createdAt ??
+      new Date().toISOString(),
+  } as Task;
+};
+
+
+// =========================================================
 // PROVIDER
 // =========================================================
 
@@ -73,9 +212,11 @@ export function TaskProvider({
   children: ReactNode;
 }) {
 
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasks, setTasks] =
+    useState<Task[]>([]);
 
-  const [loaded, setLoaded] = useState(false);
+  const [loaded, setLoaded] =
+    useState(false);
 
 
   // =======================================================
@@ -83,112 +224,93 @@ export function TaskProvider({
   // =======================================================
 
   useEffect(() => {
+
+    const loadTasks = async () => {
+
+      try {
+
+        const stored =
+          await AsyncStorage.getItem(
+            TASK_STORAGE_KEY
+          );
+
+
+        // -------------------------------------------------
+        // NO TASKS
+        // -------------------------------------------------
+
+        if (!stored) {
+
+          setTasks([]);
+
+          return;
+        }
+
+
+        // -------------------------------------------------
+        // PARSE STORAGE
+        // -------------------------------------------------
+
+        const parsed =
+          JSON.parse(
+            stored
+          );
+
+
+        // -------------------------------------------------
+        // INVALID DATA
+        // -------------------------------------------------
+
+        if (!Array.isArray(parsed)) {
+
+          setTasks([]);
+
+          return;
+        }
+
+
+        // -------------------------------------------------
+        // NORMALIZE OLD / NEW DATA
+        // -------------------------------------------------
+
+        const normalized =
+          parsed.map(
+            normalizeTask
+          );
+
+
+        setTasks(
+          normalized
+        );
+
+      } catch (error) {
+
+        console.error(
+          'Task loading error:',
+          error
+        );
+
+        setTasks([]);
+
+      } finally {
+
+        setLoaded(true);
+
+      }
+
+    };
+
+
     loadTasks();
+
   }, []);
 
 
-  const loadTasks = async () => {
-
-    try {
-
-      const saved =
-        await AsyncStorage.getItem(
-          TASK_STORAGE_KEY
-        );
-
-
-      if (!saved) {
-
-        setTasks([]);
-
-        return;
-      }
-
-
-      const parsed = JSON.parse(saved);
-
-
-      if (!Array.isArray(parsed)) {
-
-        setTasks([]);
-
-        return;
-      }
-
-
-      const cleaned: Task[] =
-        parsed.map((item: any) => ({
-
-          ...item,
-
-          id: String(
-            item.id ?? Date.now()
-          ),
-
-          title:
-            item.title ?? '',
-
-          category:
-            item.category ?? 'Personal',
-
-          date:
-            item.date ?? '',
-
-          time:
-            item.time ?? '',
-
-          completed:
-            Boolean(
-              item.completed
-            ),
-
-          reminderEnabled:
-            Boolean(
-              item.reminderEnabled
-            ),
-
-          notes:
-            item.notes ?? '',
-
-          subtasks:
-            Array.isArray(
-              item.subtasks
-            )
-              ? item.subtasks
-              : [],
-
-          saved:
-            Boolean(
-              item.saved
-            ),
-
-        }));
-
-
-      setTasks(cleaned);
-
-    } catch (error) {
-
-      console.error(
-        'Task loading error:',
-        error
-      );
-
-      setTasks([]);
-
-    } finally {
-
-      setLoaded(true);
-
-    }
-  };
-
-
   // =======================================================
-  // SAVE TASKS
+  // SAVE TASKS TO ASYNC STORAGE
   // =======================================================
 
-  const saveTasks = async (
+  const persistTasks = async (
     updatedTasks: Task[]
   ) => {
 
@@ -198,6 +320,7 @@ export function TaskProvider({
         updatedTasks
       )
     );
+
   };
 
 
@@ -211,66 +334,55 @@ export function TaskProvider({
 
     try {
 
-      const newTask: Task = {
+      const newTask =
+        normalizeTask({
 
-        ...task,
+          ...task,
 
-        id: task.id
-          ? String(task.id)
-          : Date.now().toString(),
+          // Generate unique ID
+          id:
+            task?.id ??
+            `${Date.now()}-${Math.random()
+              .toString(36)
+              .slice(2)}`,
 
-        title:
-          task.title ?? '',
+          // New task starts incomplete
+          completed:
+            false,
 
-        category:
-          task.category ?? 'Personal',
+          // Creation timestamp
+          createdAt:
+            task?.createdAt ??
+            new Date().toISOString(),
 
-        date:
-          task.date ?? '',
-
-        time:
-          task.time ?? '',
-
-        completed:
-          Boolean(
-            task.completed
-          ),
-
-        reminderEnabled:
-          Boolean(
-            task.reminderEnabled
-          ),
-
-        notes:
-          task.notes ?? '',
-
-        subtasks:
-          Array.isArray(
-            task.subtasks
-          )
-            ? task.subtasks
-            : [],
-
-        saved:
-          Boolean(
-            (task as any).saved
-          ),
-
-      };
-
-
-      const updatedTasks = [
-        ...tasks,
-        newTask,
-      ];
+        });
 
 
       setTasks(
-        updatedTasks
-      );
+        previousTasks => {
 
-      await saveTasks(
-        updatedTasks
+          const updatedTasks = [
+            ...previousTasks,
+            newTask,
+          ];
+
+
+          // Save immediately
+          persistTasks(
+            updatedTasks
+          ).catch(error => {
+
+            console.error(
+              'Storage save error:',
+              error
+            );
+
+          });
+
+
+          return updatedTasks;
+
+        }
       );
 
     } catch (error) {
@@ -281,7 +393,9 @@ export function TaskProvider({
       );
 
       throw error;
+
     }
+
   };
 
 
@@ -296,32 +410,61 @@ export function TaskProvider({
 
     try {
 
-      const updatedTasks =
-        tasks.map((task) => {
-
-          if (
-            String(task.id) !==
-            String(id)
-          ) {
-
-            return task;
-          }
-
-
-          return {
-            ...task,
-            ...updates,
-          };
-
-        });
+      const taskId =
+        String(id);
 
 
       setTasks(
-        updatedTasks
-      );
+        previousTasks => {
 
-      await saveTasks(
-        updatedTasks
+          const updatedTasks =
+            previousTasks.map(
+              task => {
+
+                // Keep other tasks unchanged
+                if (
+                  String(task.id) !==
+                  taskId
+                ) {
+
+                  return task;
+
+                }
+
+
+                // Update selected task
+                return normalizeTask({
+
+                  ...task,
+
+                  ...updates,
+
+                  // Never allow ID to change
+                  id:
+                    task.id,
+
+                });
+
+              }
+            );
+
+
+          // Persist updated list
+          persistTasks(
+            updatedTasks
+          ).catch(error => {
+
+            console.error(
+              'Storage update error:',
+              error
+            );
+
+          });
+
+
+          return updatedTasks;
+
+        }
       );
 
     } catch (error) {
@@ -332,7 +475,9 @@ export function TaskProvider({
       );
 
       throw error;
+
     }
+
   };
 
 
@@ -350,98 +495,33 @@ export function TaskProvider({
         String(id);
 
 
-      // ---------------------------------------------------
-      // Read the latest tasks from AsyncStorage.
-      // This prevents deleting from an outdated state.
-      // ---------------------------------------------------
+      setTasks(
+        previousTasks => {
 
-      const storedTasks =
-        await AsyncStorage.getItem(
-          TASK_STORAGE_KEY
-        );
-
-
-      let currentTasks: Task[] = [];
-
-
-      if (storedTasks) {
-
-        try {
-
-          const parsed =
-            JSON.parse(
-              storedTasks
+          const updatedTasks =
+            previousTasks.filter(
+              task =>
+                String(task.id) !==
+                taskId
             );
 
 
-          if (
-            Array.isArray(parsed)
-          ) {
+          // Save after deletion
+          persistTasks(
+            updatedTasks
+          ).catch(error => {
 
-            currentTasks =
-              parsed;
+            console.error(
+              'Storage delete error:',
+              error
+            );
 
-          } else {
+          });
 
-            currentTasks =
-              tasks;
 
-          }
+          return updatedTasks;
 
-        } catch (error) {
-
-          console.error(
-            'Storage parse error:',
-            error
-          );
-
-          currentTasks =
-            tasks;
         }
-
-      } else {
-
-        currentTasks =
-          tasks;
-      }
-
-
-      // ---------------------------------------------------
-      // Remove selected task
-      // ---------------------------------------------------
-
-      const updatedTasks =
-        currentTasks.filter(
-          (task) =>
-            String(task.id) !==
-            taskId
-        );
-
-
-      // ---------------------------------------------------
-      // Update React state
-      // ---------------------------------------------------
-
-      setTasks(
-        updatedTasks
-      );
-
-
-      // ---------------------------------------------------
-      // Update AsyncStorage
-      // ---------------------------------------------------
-
-      await AsyncStorage.setItem(
-        TASK_STORAGE_KEY,
-        JSON.stringify(
-          updatedTasks
-        )
-      );
-
-
-      console.log(
-        'Task deleted successfully:',
-        taskId
       );
 
     } catch (error) {
@@ -452,12 +532,14 @@ export function TaskProvider({
       );
 
       throw error;
+
     }
+
   };
 
 
   // =======================================================
-  // TOGGLE COMPLETED
+  // COMPLETE / UNCOMPLETE TASK
   // =======================================================
 
   const toggleTask = async (
@@ -466,7 +548,7 @@ export function TaskProvider({
 
     const task =
       tasks.find(
-        (item) =>
+        item =>
           String(item.id) ===
           String(id)
       );
@@ -475,21 +557,23 @@ export function TaskProvider({
     if (!task) {
 
       return;
+
     }
 
 
     await updateTask(
-      id,
+      String(id),
       {
         completed:
           !task.completed,
       }
     );
+
   };
 
 
   // =======================================================
-  // TOGGLE SAVED
+  // SAVE / UNSAVE TASK
   // =======================================================
 
   const toggleSavedTask =
@@ -499,7 +583,7 @@ export function TaskProvider({
 
       const task =
         tasks.find(
-          (item) =>
+          item =>
             String(item.id) ===
             String(id)
         );
@@ -508,19 +592,20 @@ export function TaskProvider({
       if (!task) {
 
         return;
+
       }
 
 
       await updateTask(
-        id,
+        String(id),
         {
           saved:
             !Boolean(
-              (task as any)
-                .saved
+              task.saved
             ),
         }
       );
+
     };
 
 
@@ -533,50 +618,131 @@ export function TaskProvider({
   ) => {
 
     return tasks.find(
-      (task) =>
+      task =>
         String(task.id) ===
         String(id)
     );
+
   };
+
+
+  // =======================================================
+  // GET TASKS BY CATEGORY
+  // =======================================================
+
+  const getTasksByCategory = (
+    category: string
+  ) => {
+
+    return tasks.filter(
+      task =>
+        String(
+          task.category
+        ).toLowerCase() ===
+        String(
+          category
+        ).toLowerCase()
+    );
+
+  };
+
+
+  // =======================================================
+  // CLEAR COMPLETED TASKS
+  // =======================================================
+
+  const clearCompletedTasks =
+    async () => {
+
+      try {
+
+        setTasks(
+          previousTasks => {
+
+            const updatedTasks =
+              previousTasks.filter(
+                task =>
+                  !task.completed
+              );
+
+
+            persistTasks(
+              updatedTasks
+            ).catch(error => {
+
+              console.error(
+                'Clear completed storage error:',
+                error
+              );
+
+            });
+
+
+            return updatedTasks;
+
+          }
+        );
+
+      } catch (error) {
+
+        console.error(
+          'Clear completed error:',
+          error
+        );
+
+        throw error;
+
+      }
+
+    };
 
 
   // =======================================================
   // CLEAR ALL TASKS
   // =======================================================
 
-  const clearTasks = async () => {
+  const clearTasks =
+    async () => {
 
-    try {
+      try {
 
-      setTasks([]);
+        setTasks([]);
 
-      await AsyncStorage.removeItem(
-        TASK_STORAGE_KEY
-      );
+        await AsyncStorage.removeItem(
+          TASK_STORAGE_KEY
+        );
 
-    } catch (error) {
+      } catch (error) {
 
-      console.error(
-        'Clear tasks error:',
-        error
-      );
+        console.error(
+          'Clear tasks error:',
+          error
+        );
 
-      throw error;
-    }
-  };
+        throw error;
+
+      }
+
+    };
+
+
+  // =======================================================
+  // WAIT FOR STORAGE
+  // =======================================================
+
+  if (!loaded) {
+
+    return null;
+
+  }
 
 
   // =======================================================
   // PROVIDER
   // =======================================================
 
-  if (!loaded) {
-
-    return null;
-  }
-
-
   return (
+
     <TaskContext.Provider
       value={{
 
@@ -594,6 +760,10 @@ export function TaskProvider({
 
         getTaskById,
 
+        getTasksByCategory,
+
+        clearCompletedTasks,
+
         clearTasks,
 
       }}
@@ -602,7 +772,9 @@ export function TaskProvider({
       {children}
 
     </TaskContext.Provider>
+
   );
+
 }
 
 
@@ -625,10 +797,12 @@ export function useTasks() {
     throw new Error(
       'useTasks must be used inside TaskProvider'
     );
+
   }
 
 
   return context;
+
 }
 
 
@@ -651,10 +825,12 @@ export function useTaskContext() {
     throw new Error(
       'useTaskContext must be used inside TaskProvider'
     );
+
   }
 
 
   return context;
+
 }
 
 
@@ -663,4 +839,3 @@ export function useTaskContext() {
 // =========================================================
 
 export default TaskContext;
-

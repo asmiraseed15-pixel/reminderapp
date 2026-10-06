@@ -1,5 +1,9 @@
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 
 import {
   Alert,
@@ -23,11 +27,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 
 import { useTasks } from '../context/TaskContext';
 
 const PROFILE_KEY = 'smart_todo_profile';
 const SETTINGS_KEY = 'smart_todo_settings';
+const HEALTH_KEY = 'smart_health_fitness';
+const FINANCE_KEY = 'smart_todo_finance_transactions';
 
 type Appearance = 'System' | 'Light' | 'Dark';
 
@@ -48,6 +56,25 @@ type ProfileData = {
 type SettingsData = {
   notifications: boolean;
   appearance: Appearance;
+};
+
+type HealthData = {
+  steps: number;
+  water: number;
+  calories: number;
+  weight: number;
+  date: string;
+};
+
+type FinanceTransaction = {
+  id: string;
+  title: string;
+  amount: number;
+  type: 'income' | 'expense';
+  category: string;
+  date: string;
+  note?: string;
+  createdAt: string;
 };
 
 const defaultProfile: ProfileData = {
@@ -81,6 +108,7 @@ const COLORS = {
   orange: '#F59E0B',
   red: '#EF4444',
   purple: '#7C3AED',
+  pink: '#EC4899',
 };
 
 export default function ProfileScreen() {
@@ -100,10 +128,11 @@ export default function ProfileScreen() {
   const [editing, setEditing] = useState(false);
   const [themeModal, setThemeModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [sharing, setSharing] = useState(false);
 
-  /* ----------------------------------
+  /* =========================================
      LOAD PROFILE
-  ----------------------------------- */
+  ========================================= */
 
   useEffect(() => {
     loadProfile();
@@ -131,39 +160,42 @@ export default function ProfileScreen() {
         });
       }
     } catch (error) {
-      console.log('Profile loading error:', error);
+      console.log(
+        'Profile loading error:',
+        error,
+      );
     }
   };
 
-  /* ----------------------------------
-     BACK BUTTON FIX
-  ----------------------------------- */
+  /* =========================================
+     BACK
+  ========================================= */
 
   const handleBack = () => {
     if (router.canGoBack()) {
       router.back();
     } else {
-      router.replace('/task' as any);
+      router.push('/task' as any);
     }
   };
 
-  /* ----------------------------------
+  /* =========================================
      UPDATE PROFILE
-  ----------------------------------- */
+  ========================================= */
 
   const updateProfile = <K extends keyof ProfileData>(
     key: K,
     value: ProfileData[K],
   ) => {
-    setProfile((prev) => ({
-      ...prev,
+    setProfile((previous) => ({
+      ...previous,
       [key]: value,
     }));
   };
 
-  /* ----------------------------------
-     SAVE PROFILE
-  ----------------------------------- */
+  /* =========================================
+     SAVE
+  ========================================= */
 
   const saveProfile = async () => {
     try {
@@ -182,7 +214,9 @@ export default function ProfileScreen() {
       setEditing(false);
 
       if (isWeb) {
-        window.alert('Profile saved successfully!');
+        window.alert(
+          'Profile saved successfully!',
+        );
       } else {
         Alert.alert(
           'Profile Saved',
@@ -190,28 +224,38 @@ export default function ProfileScreen() {
         );
       }
     } catch (error) {
-      console.log('Save profile error:', error);
+      console.log(
+        'Save profile error:',
+        error,
+      );
     } finally {
       setSaving(false);
     }
   };
 
-  /* ----------------------------------
-     RESET PROFILE
-  ----------------------------------- */
+  /* =========================================
+     RESET
+  ========================================= */
 
   const resetProfile = () => {
     const performReset = async () => {
       try {
-        await AsyncStorage.removeItem(PROFILE_KEY);
-        await AsyncStorage.removeItem(SETTINGS_KEY);
+        await AsyncStorage.removeItem(
+          PROFILE_KEY,
+        );
+
+        await AsyncStorage.removeItem(
+          SETTINGS_KEY,
+        );
 
         setProfile(defaultProfile);
         setSettings(defaultSettings);
         setEditing(false);
 
         if (isWeb) {
-          window.alert('Profile has been reset.');
+          window.alert(
+            'Profile has been reset.',
+          );
         } else {
           Alert.alert(
             'Profile Reset',
@@ -219,14 +263,18 @@ export default function ProfileScreen() {
           );
         }
       } catch (error) {
-        console.log('Reset error:', error);
+        console.log(
+          'Reset error:',
+          error,
+        );
       }
     };
 
     if (isWeb) {
-      const confirmed = window.confirm(
-        'Are you sure you want to reset your profile?',
-      );
+      const confirmed =
+        window.confirm(
+          'Are you sure you want to reset your profile?',
+        );
 
       if (confirmed) {
         performReset();
@@ -250,9 +298,9 @@ export default function ProfileScreen() {
     }
   };
 
-  /* ----------------------------------
+  /* =========================================
      PROFILE IMAGE
-  ----------------------------------- */
+  ========================================= */
 
   const pickProfileImage = async () => {
     try {
@@ -293,13 +341,16 @@ export default function ProfileScreen() {
         );
       }
     } catch (error) {
-      console.log('Image picker error:', error);
+      console.log(
+        'Image picker error:',
+        error,
+      );
     }
   };
 
-  /* ----------------------------------
-     OPEN SOCIAL LINK
-  ----------------------------------- */
+  /* =========================================
+     OPEN LINK
+  ========================================= */
 
   const openLink = async (url: string) => {
     if (!url.trim()) {
@@ -318,13 +369,16 @@ export default function ProfileScreen() {
     try {
       await Linking.openURL(finalUrl);
     } catch (error) {
-      console.log('Link opening error:', error);
+      console.log(
+        'Link opening error:',
+        error,
+      );
     }
   };
 
-  /* ----------------------------------
+  /* =========================================
      TASK STATISTICS
-  ----------------------------------- */
+  ========================================= */
 
   const totalTasks = tasks.length;
 
@@ -357,9 +411,10 @@ export default function ProfileScreen() {
       todayKey,
   );
 
-  const todayCompleted = todayTasks.filter(
-    (task) => task.completed,
-  ).length;
+  const todayCompleted =
+    todayTasks.filter(
+      (task) => task.completed,
+    ).length;
 
   const todayGoal = Math.max(
     Number(profile.dailyGoal) || 5,
@@ -373,42 +428,49 @@ export default function ProfileScreen() {
     100,
   );
 
-  /* ----------------------------------
+  /* =========================================
      ACHIEVEMENTS
-  ----------------------------------- */
+  ========================================= */
 
   const achievements = useMemo(() => {
     return [
       {
         icon: 'rocket-outline',
         title: 'Task Starter',
-        description: 'Created your first task',
+        description:
+          'Created your first task',
         unlocked: totalTasks >= 1,
       },
       {
         icon: 'checkmark-circle-outline',
         title: 'Task Finisher',
-        description: 'Completed your first task',
+        description:
+          'Completed your first task',
         unlocked: completedTasks >= 1,
       },
       {
         icon: 'trophy-outline',
         title: 'Productive Mind',
-        description: 'Completed 10 tasks',
+        description:
+          'Completed 10 tasks',
         unlocked: completedTasks >= 10,
       },
       {
         icon: 'flame-outline',
         title: 'Consistency',
-        description: 'Completed 20 tasks',
+        description:
+          'Completed 20 tasks',
         unlocked: completedTasks >= 20,
       },
     ];
-  }, [totalTasks, completedTasks]);
+  }, [
+    totalTasks,
+    completedTasks,
+  ]);
 
-  /* ----------------------------------
+  /* =========================================
      PROFILE COMPLETION
-  ----------------------------------- */
+  ========================================= */
 
   const profileCompletion = useMemo(() => {
     const fields = [
@@ -431,9 +493,9 @@ export default function ProfileScreen() {
     );
   }, [profile]);
 
-  /* ----------------------------------
+  /* =========================================
      APPEARANCE
-  ----------------------------------- */
+  ========================================= */
 
   const selectedAppearance =
     settings.appearance;
@@ -441,17 +503,1513 @@ export default function ProfileScreen() {
   const setAppearance = (
     value: Appearance,
   ) => {
-    setSettings((prev) => ({
-      ...prev,
+    setSettings((previous) => ({
+      ...previous,
       appearance: value,
     }));
 
     setThemeModal(false);
   };
 
-  /* ----------------------------------
-     INPUT COMPONENT
-  ----------------------------------- */
+  /* =========================================
+     HTML ESCAPE
+  ========================================= */
+
+  const escapeHtml = (
+    value: unknown,
+  ) => {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  };
+
+  /* =========================================
+     MONEY
+  ========================================= */
+
+  const formatMoney = (
+    amount: number,
+  ) => {
+    return `₹${Number(
+      amount || 0,
+    ).toLocaleString('en-IN', {
+      maximumFractionDigits: 2,
+    })}`;
+  };
+
+  /* =========================================
+     DATE FORMAT
+  ========================================= */
+
+  const formatDate = (
+    value: unknown,
+  ) => {
+    const text = String(
+      value || '',
+    );
+
+    if (!text) {
+      return '-';
+    }
+
+    const date = new Date(text);
+
+    if (Number.isNaN(date.getTime())) {
+      return text;
+    }
+
+    return date.toLocaleDateString(
+      'en-IN',
+      {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      },
+    );
+  };
+
+  /* =========================================
+     SHARE ALL RECORDS AS PDF
+  ========================================= */
+
+  const shareAllRecords = async () => {
+    if (sharing) {
+      return;
+    }
+
+    try {
+      setSharing(true);
+
+      /* -------------------------------------
+         HEALTH
+      ------------------------------------- */
+
+      let health: HealthData = {
+        steps: 0,
+        water: 0,
+        calories: 0,
+        weight: 60,
+        date: todayKey,
+      };
+
+      const savedHealth =
+        await AsyncStorage.getItem(
+          HEALTH_KEY,
+        );
+
+      if (savedHealth) {
+        try {
+          health = {
+            ...health,
+            ...JSON.parse(savedHealth),
+          };
+        } catch (error) {
+          console.log(
+            'Health parsing error:',
+            error,
+          );
+        }
+      }
+
+      /* -------------------------------------
+         FINANCE
+      ------------------------------------- */
+
+      let financeTransactions:
+        FinanceTransaction[] = [];
+
+      const savedFinance =
+        await AsyncStorage.getItem(
+          FINANCE_KEY,
+        );
+
+      if (savedFinance) {
+        try {
+          const parsed =
+            JSON.parse(savedFinance);
+
+          if (Array.isArray(parsed)) {
+            financeTransactions =
+              parsed;
+          }
+        } catch (error) {
+          console.log(
+            'Finance parsing error:',
+            error,
+          );
+        }
+      }
+
+      const income =
+        financeTransactions
+          .filter(
+            (item) =>
+              item.type === 'income',
+          )
+          .reduce(
+            (sum, item) =>
+              sum +
+              Number(
+                item.amount || 0,
+              ),
+            0,
+          );
+
+      const expenses =
+        financeTransactions
+          .filter(
+            (item) =>
+              item.type === 'expense',
+          )
+          .reduce(
+            (sum, item) =>
+              sum +
+              Number(
+                item.amount || 0,
+              ),
+            0,
+          );
+
+      const balance =
+        income - expenses;
+
+      /* -------------------------------------
+         SORT TASKS
+      ------------------------------------- */
+
+      const sortedTasks =
+        [...tasks].sort(
+          (a, b) => {
+            const dateA =
+              String(
+                a.date || '',
+              );
+
+            const dateB =
+              String(
+                b.date || '',
+              );
+
+            const dateCompare =
+              dateA.localeCompare(
+                dateB,
+              );
+
+            if (
+              dateCompare !== 0
+            ) {
+              return dateCompare;
+            }
+
+            return String(
+              a.time || '',
+            ).localeCompare(
+              String(
+                b.time || '',
+              ),
+            );
+          },
+        );
+
+      /* -------------------------------------
+         ALL TASK ROWS
+      ------------------------------------- */
+
+      const taskRows =
+        sortedTasks.length > 0
+          ? sortedTasks
+              .map((task) => {
+                const status =
+                  task.completed
+                    ? 'Completed'
+                    : 'Pending';
+
+                return `
+                  <tr>
+                    <td>
+                      ${escapeHtml(
+                        task.title ||
+                          'Untitled Task',
+                      )}
+                    </td>
+
+                    <td>
+                      ${escapeHtml(
+                        task.category ||
+                          'Personal',
+                      )}
+                    </td>
+
+                    <td>
+                      ${escapeHtml(
+                        formatDate(
+                          task.date,
+                        ),
+                      )}
+                    </td>
+
+                    <td>
+                      ${escapeHtml(
+                        task.time ||
+                          '-',
+                      )}
+                    </td>
+
+                    <td>
+                      <span class="${
+                        task.completed
+                          ? 'status completed'
+                          : 'status pending'
+                      }">
+                        ${status}
+                      </span>
+                    </td>
+                  </tr>
+                `;
+              })
+              .join('')
+          : `
+              <tr>
+                <td
+                  colspan="5"
+                  class="empty"
+                >
+                  No tasks available
+                </td>
+              </tr>
+            `;
+
+      /* -------------------------------------
+         TODAY TASKS
+      ------------------------------------- */
+
+      const todayTaskRows =
+        todayTasks.length > 0
+          ? todayTasks
+              .map(
+                (task) => `
+                  <div class="mini-task">
+                    <div>
+                      <strong>
+                        ${escapeHtml(
+                          task.title ||
+                            'Untitled Task',
+                        )}
+                      </strong>
+
+                      <span>
+                        ${escapeHtml(
+                          task.category ||
+                            'Personal',
+                        )}
+
+                        ${
+                          task.time
+                            ? ` • ${escapeHtml(
+                                task.time,
+                              )}`
+                            : ''
+                        }
+                      </span>
+                    </div>
+
+                    <b class="${
+                      task.completed
+                        ? 'green-text'
+                        : 'orange-text'
+                    }">
+                      ${
+                        task.completed
+                          ? 'Completed'
+                          : 'Pending'
+                      }
+                    </b>
+                  </div>
+                `,
+              )
+              .join('')
+          : `
+              <div class="empty-box">
+                No tasks scheduled for today.
+              </div>
+            `;
+
+      /* -------------------------------------
+         CALENDAR / SCHEDULE ROWS
+      ------------------------------------- */
+
+      const scheduleRows =
+        sortedTasks.length > 0
+          ? sortedTasks
+              .map(
+                (task) => `
+                  <tr>
+                    <td>
+                      ${escapeHtml(
+                        formatDate(
+                          task.date,
+                        ),
+                      )}
+                    </td>
+
+                    <td>
+                      ${escapeHtml(
+                        task.time ||
+                          '-',
+                      )}
+                    </td>
+
+                    <td>
+                      ${escapeHtml(
+                        task.title ||
+                          'Untitled Task',
+                      )}
+                    </td>
+
+                    <td>
+                      ${escapeHtml(
+                        task.category ||
+                          'Personal',
+                      )}
+                    </td>
+
+                    <td>
+                      ${
+                        task.completed
+                          ? 'Completed'
+                          : 'Pending'
+                      }
+                    </td>
+                  </tr>
+                `,
+              )
+              .join('')
+          : `
+              <tr>
+                <td
+                  colspan="5"
+                  class="empty"
+                >
+                  No schedule records available
+                </td>
+              </tr>
+            `;
+
+      /* -------------------------------------
+         FINANCE ROWS
+      ------------------------------------- */
+
+      const financeRows =
+        financeTransactions.length > 0
+          ? financeTransactions
+              .slice()
+              .sort((a, b) =>
+                String(
+                  b.date || '',
+                ).localeCompare(
+                  String(
+                    a.date || '',
+                  ),
+                ),
+              )
+              .map(
+                (transaction) => {
+                  const isIncome =
+                    transaction.type ===
+                    'income';
+
+                  return `
+                    <tr>
+                      <td>
+                        ${escapeHtml(
+                          transaction.title ||
+                            'Transaction',
+                        )}
+                      </td>
+
+                      <td>
+                        ${escapeHtml(
+                          transaction.category ||
+                            'Other',
+                        )}
+                      </td>
+
+                      <td>
+                        ${escapeHtml(
+                          formatDate(
+                            transaction.date,
+                          ),
+                        )}
+                      </td>
+
+                      <td class="${
+                        isIncome
+                          ? 'income'
+                          : 'expense'
+                      }">
+                        ${
+                          isIncome
+                            ? '+'
+                            : '-'
+                        }${formatMoney(
+                          Number(
+                            transaction.amount ||
+                              0,
+                          ),
+                        )}
+                      </td>
+                    </tr>
+                  `;
+                },
+              )
+              .join('')
+          : `
+              <tr>
+                <td
+                  colspan="4"
+                  class="empty"
+                >
+                  No finance records available
+                </td>
+              </tr>
+            `;
+
+      /* -------------------------------------
+         GENERATED DATE
+      ------------------------------------- */
+
+      const generatedDate =
+        new Date().toLocaleString(
+          'en-IN',
+          {
+            dateStyle: 'medium',
+            timeStyle: 'short',
+          },
+        );
+
+      /* -------------------------------------
+         PDF HTML
+      ------------------------------------- */
+
+      const html = `
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="UTF-8" />
+
+<meta
+  name="viewport"
+  content="width=device-width, initial-scale=1.0"
+/>
+
+<title>
+  Smart Life Report
+</title>
+
+<style>
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family:
+    Arial,
+    Helvetica,
+    sans-serif;
+  background: #f4f7fb;
+  color: #152238;
+}
+
+.page {
+  padding: 30px;
+}
+
+.hero {
+  background:
+    linear-gradient(
+      135deg,
+      #126eed,
+      #7c3aed
+    );
+  color: white;
+  padding: 30px;
+  border-radius: 20px;
+  margin-bottom: 24px;
+}
+
+.brand {
+  font-size: 29px;
+  font-weight: 900;
+  letter-spacing: 1.5px;
+}
+
+.subtitle {
+  font-size: 14px;
+  opacity: 0.92;
+  margin-top: 6px;
+}
+
+.generated {
+  margin-top: 18px;
+  font-size: 11px;
+  opacity: 0.82;
+}
+
+.profile-box {
+  background: white;
+  border-radius: 18px;
+  padding: 22px;
+  margin-bottom: 22px;
+  border: 1px solid #e5eaf1;
+}
+
+.profile-name {
+  font-size: 23px;
+  font-weight: 900;
+}
+
+.profile-profession {
+  color: #126eed;
+  font-weight: 700;
+  margin-top: 5px;
+}
+
+.profile-line {
+  font-size: 12px;
+  color: #718096;
+  margin-top: 6px;
+}
+
+.section-title {
+  font-size: 19px;
+  font-weight: 900;
+  margin-top: 25px;
+  margin-bottom: 12px;
+}
+
+.stats,
+.health-grid,
+.finance-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.stat,
+.health-card,
+.finance-card {
+  flex: 1;
+  min-width: 130px;
+  background: white;
+  border: 1px solid #e5eaf1;
+  border-radius: 15px;
+  padding: 16px;
+}
+
+.stat-value {
+  font-size: 23px;
+  font-weight: 900;
+  color: #126eed;
+}
+
+.stat-label,
+.health-label,
+.finance-label {
+  font-size: 11px;
+  color: #718096;
+  margin-top: 5px;
+}
+
+.health-value,
+.finance-value {
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.summary {
+  background: #eaf3ff;
+  border: 1px solid #cfe2ff;
+  border-radius: 17px;
+  padding: 20px;
+  margin-top: 20px;
+}
+
+.summary-title {
+  font-size: 15px;
+  font-weight: 900;
+  margin-bottom: 10px;
+}
+
+.summary-line {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  font-size: 12px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border: 1px solid #e5eaf1;
+}
+
+th {
+  background: #eef5ff;
+  color: #152238;
+  font-size: 10px;
+  text-align: left;
+  padding: 11px;
+}
+
+td {
+  border-top: 1px solid #edf0f5;
+  padding: 10px;
+  font-size: 10px;
+  color: #4e5969;
+}
+
+.status {
+  padding: 4px 7px;
+  border-radius: 6px;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.completed {
+  background: #e9f9ef;
+  color: #16a34a;
+}
+
+.pending {
+  background: #fff6e2;
+  color: #d97706;
+}
+
+.income {
+  color: #16a34a;
+  font-weight: 900;
+}
+
+.expense {
+  color: #ef4444;
+  font-weight: 900;
+}
+
+.mini-task {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: white;
+  border: 1px solid #e5eaf1;
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 8px;
+}
+
+.mini-task strong {
+  display: block;
+  font-size: 12px;
+}
+
+.mini-task span {
+  display: block;
+  color: #718096;
+  font-size: 10px;
+  margin-top: 3px;
+}
+
+.green-text {
+  color: #16a34a;
+  font-size: 10px;
+}
+
+.orange-text {
+  color: #f59e0b;
+  font-size: 10px;
+}
+
+.empty,
+.empty-box {
+  color: #8b95a5;
+  text-align: center;
+  padding: 18px;
+}
+
+.empty-box {
+  background: white;
+  border: 1px solid #e5eaf1;
+  border-radius: 13px;
+  font-size: 12px;
+}
+
+.footer {
+  text-align: center;
+  color: #9aa3b2;
+  font-size: 10px;
+  margin-top: 30px;
+  padding-top: 15px;
+  border-top: 1px solid #e5eaf1;
+}
+
+@media print {
+
+  body {
+    background: white;
+  }
+
+  .page {
+    padding: 15px;
+  }
+
+  .section-title {
+    break-after: avoid;
+  }
+
+  table {
+    break-inside: auto;
+  }
+
+  tr {
+    break-inside: avoid;
+  }
+
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="page">
+
+  <!-- HERO -->
+
+  <div class="hero">
+
+    <div class="brand">
+      SMART LIFE
+    </div>
+
+    <div class="subtitle">
+      Personal Productivity & Life Report
+    </div>
+
+    <div class="generated">
+      Generated on
+      ${escapeHtml(
+        generatedDate,
+      )}
+    </div>
+
+  </div>
+
+
+  <!-- PROFILE -->
+
+  <div class="section-title">
+    Profile
+  </div>
+
+  <div class="profile-box">
+
+    <div class="profile-name">
+      ${escapeHtml(
+        profile.name ||
+          'Smart Life User',
+      )}
+    </div>
+
+    <div class="profile-profession">
+      ${escapeHtml(
+        profile.profession ||
+          'Productivity Enthusiast',
+      )}
+    </div>
+
+    <div class="profile-line">
+      Email:
+      ${escapeHtml(
+        profile.email || '-',
+      )}
+    </div>
+
+    <div class="profile-line">
+      Mobile:
+      ${escapeHtml(
+        profile.mobile || '-',
+      )}
+    </div>
+
+    <div class="profile-line">
+      Location:
+      ${escapeHtml(
+        profile.location || '-',
+      )}
+    </div>
+
+    <div class="profile-line">
+      Daily Goal:
+      ${escapeHtml(
+        profile.dailyGoal || '5',
+      )}
+      tasks
+    </div>
+
+    ${
+      profile.bio
+        ? `
+          <div class="profile-line">
+            About:
+            ${escapeHtml(
+              profile.bio,
+            )}
+          </div>
+        `
+        : ''
+    }
+
+  </div>
+
+
+  <!-- TASK SUMMARY -->
+
+  <div class="section-title">
+    Task Summary
+  </div>
+
+  <div class="stats">
+
+    <div class="stat">
+      <div class="stat-value">
+        ${totalTasks}
+      </div>
+
+      <div class="stat-label">
+        Total Tasks
+      </div>
+    </div>
+
+    <div class="stat">
+      <div class="stat-value">
+        ${completedTasks}
+      </div>
+
+      <div class="stat-label">
+        Completed
+      </div>
+    </div>
+
+    <div class="stat">
+      <div class="stat-value">
+        ${pendingTasks}
+      </div>
+
+      <div class="stat-label">
+        Pending
+      </div>
+    </div>
+
+    <div class="stat">
+      <div class="stat-value">
+        ${savedTasks}
+      </div>
+
+      <div class="stat-label">
+        Saved Tasks
+      </div>
+    </div>
+
+  </div>
+
+
+  <!-- PRODUCTIVITY -->
+
+  <div class="summary">
+
+    <div class="summary-title">
+      Productivity Performance
+    </div>
+
+    <div class="summary-line">
+      <span>
+        Completion Rate
+      </span>
+
+      <strong>
+        ${completionRate}%
+      </strong>
+    </div>
+
+    <div class="summary-line">
+      <span>
+        Today's Completed
+      </span>
+
+      <strong>
+        ${todayCompleted}
+      </strong>
+    </div>
+
+    <div class="summary-line">
+      <span>
+        Today's Goal
+      </span>
+
+      <strong>
+        ${todayGoal}
+      </strong>
+    </div>
+
+    <div class="summary-line">
+      <span>
+        Goal Progress
+      </span>
+
+      <strong>
+        ${goalProgress}%
+      </strong>
+    </div>
+
+  </div>
+
+
+  <!-- TODAY -->
+
+  <div class="section-title">
+    Today's Tasks
+  </div>
+
+  ${todayTaskRows}
+
+
+  <!-- CALENDAR -->
+
+  <div class="section-title">
+    Calendar / Schedule Records
+  </div>
+
+  <table>
+
+    <thead>
+
+      <tr>
+
+        <th>
+          Date
+        </th>
+
+        <th>
+          Time
+        </th>
+
+        <th>
+          Task
+        </th>
+
+        <th>
+          Category
+        </th>
+
+        <th>
+          Status
+        </th>
+
+      </tr>
+
+    </thead>
+
+    <tbody>
+
+      ${scheduleRows}
+
+    </tbody>
+
+  </table>
+
+
+  <!-- ALL TASKS -->
+
+  <div class="section-title">
+    All Task Records
+  </div>
+
+  <table>
+
+    <thead>
+
+      <tr>
+
+        <th>
+          Task
+        </th>
+
+        <th>
+          Category
+        </th>
+
+        <th>
+          Date
+        </th>
+
+        <th>
+          Time
+        </th>
+
+        <th>
+          Status
+        </th>
+
+      </tr>
+
+    </thead>
+
+    <tbody>
+
+      ${taskRows}
+
+    </tbody>
+
+  </table>
+
+
+  <!-- HEALTH -->
+
+  <div class="section-title">
+    Health & Fitness
+  </div>
+
+  <div class="health-grid">
+
+    <div class="health-card">
+
+      <div class="health-value">
+        ${Number(
+          health.steps || 0,
+        ).toLocaleString()}
+      </div>
+
+      <div class="health-label">
+        Steps
+      </div>
+
+    </div>
+
+    <div class="health-card">
+
+      <div class="health-value">
+        ${Number(
+          health.calories || 0,
+        ).toLocaleString()}
+      </div>
+
+      <div class="health-label">
+        Calories Burned
+      </div>
+
+    </div>
+
+    <div class="health-card">
+
+      <div class="health-value">
+        ${Number(
+          health.water || 0,
+        ).toLocaleString()}
+        ml
+      </div>
+
+      <div class="health-label">
+        Water Intake
+      </div>
+
+    </div>
+
+    <div class="health-card">
+
+      <div class="health-value">
+        ${Number(
+          health.weight || 0,
+        )}
+        kg
+      </div>
+
+      <div class="health-label">
+        Weight
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- HEALTH SUMMARY -->
+
+  <div class="summary">
+
+    <div class="summary-title">
+      Health Progress
+    </div>
+
+    <div class="summary-line">
+
+      <span>
+        Step Goal
+      </span>
+
+      <strong>
+        10,000
+      </strong>
+
+    </div>
+
+    <div class="summary-line">
+
+      <span>
+        Steps Completed
+      </span>
+
+      <strong>
+        ${Number(
+          health.steps || 0,
+        ).toLocaleString()}
+      </strong>
+
+    </div>
+
+    <div class="summary-line">
+
+      <span>
+        Water Goal
+      </span>
+
+      <strong>
+        2,500 ml
+      </strong>
+
+    </div>
+
+    <div class="summary-line">
+
+      <span>
+        Water Intake
+      </span>
+
+      <strong>
+        ${Number(
+          health.water || 0,
+        ).toLocaleString()}
+        ml
+      </strong>
+
+    </div>
+
+  </div>
+
+
+  <!-- FINANCE -->
+
+  <div class="section-title">
+    Finance Summary
+  </div>
+
+  <div class="finance-grid">
+
+    <div class="finance-card">
+
+      <div
+        class="finance-value income"
+      >
+        ${formatMoney(income)}
+      </div>
+
+      <div class="finance-label">
+        Total Income
+      </div>
+
+    </div>
+
+    <div class="finance-card">
+
+      <div
+        class="finance-value expense"
+      >
+        ${formatMoney(expenses)}
+      </div>
+
+      <div class="finance-label">
+        Total Expenses
+      </div>
+
+    </div>
+
+    <div class="finance-card">
+
+      <div class="finance-value">
+        ${formatMoney(balance)}
+      </div>
+
+      <div class="finance-label">
+        Current Balance
+      </div>
+
+    </div>
+
+    <div class="finance-card">
+
+      <div class="finance-value">
+        ${financeTransactions.length}
+      </div>
+
+      <div class="finance-label">
+        Transactions
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- FINANCE RECORDS -->
+
+  <div class="section-title">
+    Finance Records
+  </div>
+
+  <table>
+
+    <thead>
+
+      <tr>
+
+        <th>
+          Title
+        </th>
+
+        <th>
+          Category
+        </th>
+
+        <th>
+          Date
+        </th>
+
+        <th>
+          Amount
+        </th>
+
+      </tr>
+
+    </thead>
+
+    <tbody>
+
+      ${financeRows}
+
+    </tbody>
+
+  </table>
+
+
+  <!-- FINAL SUMMARY -->
+
+  <div class="summary">
+
+    <div class="summary-title">
+      Smart Life Summary
+    </div>
+
+    <div class="summary-line">
+
+      <span>
+        Profile Completion
+      </span>
+
+      <strong>
+        ${profileCompletion}%
+      </strong>
+
+    </div>
+
+    <div class="summary-line">
+
+      <span>
+        Task Completion
+      </span>
+
+      <strong>
+        ${completionRate}%
+      </strong>
+
+    </div>
+
+    <div class="summary-line">
+
+      <span>
+        Steps Today
+      </span>
+
+      <strong>
+        ${Number(
+          health.steps || 0,
+        ).toLocaleString()}
+      </strong>
+
+    </div>
+
+    <div class="summary-line">
+
+      <span>
+        Water Today
+      </span>
+
+      <strong>
+        ${Number(
+          health.water || 0,
+        ).toLocaleString()}
+        ml
+      </strong>
+
+    </div>
+
+    <div class="summary-line">
+
+      <span>
+        Finance Balance
+      </span>
+
+      <strong>
+        ${formatMoney(balance)}
+      </strong>
+
+    </div>
+
+  </div>
+
+
+  <div class="footer">
+
+    Smart Life • Organize your day.
+    Conquer your goals.
+
+    <br />
+
+    Generated automatically from
+    your Smart Life records.
+
+  </div>
+
+</div>
+
+</body>
+
+</html>
+`;
+
+      /* =====================================
+         WEB
+      ===================================== */
+
+      if (Platform.OS === 'web') {
+        const printWindow =
+          window.open(
+            '',
+            '_blank',
+          );
+
+        if (printWindow) {
+          printWindow.document.write(
+            html,
+          );
+
+          printWindow.document.close();
+
+          printWindow.focus();
+
+          setTimeout(() => {
+            printWindow.print();
+          }, 600);
+        } else {
+          window.alert(
+            'Please allow pop-ups to generate your PDF report.',
+          );
+        }
+
+        return;
+      }
+
+      /* =====================================
+         GENERATE PDF
+      ===================================== */
+
+      const { uri } =
+        await Print.printToFileAsync({
+          html,
+          base64: false,
+        });
+
+      /* =====================================
+         SHARE PDF
+      ===================================== */
+
+      const canShare =
+        await Sharing.isAvailableAsync();
+
+      if (!canShare) {
+        Alert.alert(
+          'Sharing Not Available',
+          'Your device does not currently support the system share sheet.',
+        );
+
+        return;
+      }
+
+      await Sharing.shareAsync(
+        uri,
+        {
+          mimeType:
+            'application/pdf',
+
+          dialogTitle:
+            'Share Smart Life Report',
+
+          UTI: 'com.adobe.pdf',
+        },
+      );
+
+    } catch (error) {
+      console.log(
+        'PDF sharing error:',
+        error,
+      );
+
+      if (isWeb) {
+        window.alert(
+          'Unable to generate the PDF report. Please try again.',
+        );
+      } else {
+        Alert.alert(
+          'PDF Error',
+          'Unable to generate or share the PDF report. Please try again.',
+        );
+      }
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  /* =========================================
+     INPUT
+  ========================================= */
 
   const renderInput = (
     label: string,
@@ -468,6 +2026,7 @@ export default function ProfileScreen() {
   ) => {
     return (
       <View style={styles.inputGroup}>
+
         <Text style={styles.inputLabel}>
           {label}
         </Text>
@@ -479,6 +2038,7 @@ export default function ProfileScreen() {
               styles.multilineWrapper,
           ]}
         >
+
           <Ionicons
             name={icon}
             size={19}
@@ -489,13 +2049,18 @@ export default function ProfileScreen() {
           <TextInput
             value={value}
             onChangeText={(text) =>
-              updateProfile(key, text)
+              updateProfile(
+                key,
+                text,
+              )
             }
             placeholder={placeholder}
             placeholderTextColor="#A0A9B8"
             editable={editing}
             multiline={multiline}
-            keyboardType={keyboardType}
+            keyboardType={
+              keyboardType
+            }
             autoCapitalize="none"
             style={[
               styles.input,
@@ -505,19 +2070,27 @@ export default function ProfileScreen() {
                 styles.disabledInput,
             ]}
           />
+
         </View>
+
       </View>
     );
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView
+      style={styles.safeArea}
+    >
+
       <ScrollView
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={
+          false
+        }
         contentContainerStyle={
           styles.scrollContent
         }
       >
+
         <View
           style={[
             styles.container,
@@ -525,42 +2098,65 @@ export default function ProfileScreen() {
               styles.wideContainer,
           ]}
         >
-          {/* =========================
+
+          {/* =================================
               HEADER
-          ========================== */}
+          ================================= */}
 
           <View style={styles.header}>
-            <View style={styles.headerLeft}>
+
+            <View
+              style={
+                styles.headerLeft
+              }
+            >
+
               <TouchableOpacity
                 onPress={handleBack}
-                style={styles.backButton}
+                style={
+                  styles.backButton
+                }
                 activeOpacity={0.8}
               >
+
                 <Ionicons
                   name="arrow-back"
                   size={22}
-                  color={COLORS.text}
+                  color={
+                    COLORS.text
+                  }
                 />
+
               </TouchableOpacity>
 
               <View>
-                <Text style={styles.headerTitle}>
+
+                <Text
+                  style={
+                    styles.headerTitle
+                  }
+                >
                   My Profile
                 </Text>
 
                 <Text
-                  style={styles.headerSubtitle}
+                  style={
+                    styles.headerSubtitle
+                  }
                 >
                   Manage your personal
                   productivity profile
                 </Text>
+
               </View>
+
             </View>
 
             <TouchableOpacity
               onPress={() =>
                 setEditing(
-                  (prev) => !prev,
+                  (previous) =>
+                    !previous,
                 )
               }
               style={[
@@ -570,6 +2166,7 @@ export default function ProfileScreen() {
               ]}
               activeOpacity={0.8}
             >
+
               <Ionicons
                 name={
                   editing
@@ -595,24 +2192,43 @@ export default function ProfileScreen() {
                   ? 'Cancel'
                   : 'Edit Profile'}
               </Text>
+
             </TouchableOpacity>
+
           </View>
 
-          {/* =========================
-              PROFILE HERO
-          ========================== */}
 
-          <View style={styles.heroCard}>
-            <View style={styles.profileTop}>
+          {/* =================================
+              PROFILE HERO
+          ================================= */}
+
+          <View
+            style={
+              styles.heroCard
+            }
+          >
+
+            <View
+              style={
+                styles.profileTop
+              }
+            >
+
               <View
-                style={styles.avatarContainer}
+                style={
+                  styles.avatarContainer
+                }
               >
+
                 {profile.profileImage ? (
                   <Image
                     source={{
-                      uri: profile.profileImage,
+                      uri:
+                        profile.profileImage,
                     }}
-                    style={styles.avatar}
+                    style={
+                      styles.avatar
+                    }
                   />
                 ) : (
                   <View
@@ -620,11 +2236,13 @@ export default function ProfileScreen() {
                       styles.avatarPlaceholder
                     }
                   >
+
                     <Ionicons
                       name="person"
                       size={48}
                       color="#FFFFFF"
                     />
+
                   </View>
                 )}
 
@@ -636,22 +2254,33 @@ export default function ProfileScreen() {
                     style={
                       styles.cameraButton
                     }
-                    activeOpacity={0.8}
+                    activeOpacity={
+                      0.8
+                    }
                   >
+
                     <Ionicons
                       name="camera"
                       size={17}
                       color="#FFFFFF"
                     />
+
                   </TouchableOpacity>
                 )}
+
               </View>
 
+
               <View
-                style={styles.heroInfo}
+                style={
+                  styles.heroInfo
+                }
               >
+
                 <Text
-                  style={styles.profileName}
+                  style={
+                    styles.profileName
+                  }
                 >
                   {profile.name ||
                     'Your Name'}
@@ -667,11 +2296,17 @@ export default function ProfileScreen() {
                 </Text>
 
                 <View
-                  style={styles.profileMeta}
+                  style={
+                    styles.profileMeta
+                  }
                 >
+
                   <View
-                    style={styles.metaItem}
+                    style={
+                      styles.metaItem
+                    }
                   >
+
                     <Ionicons
                       name="location-outline"
                       size={15}
@@ -688,11 +2323,15 @@ export default function ProfileScreen() {
                       {profile.location ||
                         'Add your location'}
                     </Text>
+
                   </View>
 
                   <View
-                    style={styles.metaItem}
+                    style={
+                      styles.metaItem
+                    }
                   >
+
                     <Ionicons
                       name="mail-outline"
                       size={15}
@@ -710,10 +2349,15 @@ export default function ProfileScreen() {
                       {profile.email ||
                         'Add your email'}
                     </Text>
+
                   </View>
+
                 </View>
+
               </View>
+
             </View>
+
 
             {/* PROFILE COMPLETION */}
 
@@ -722,12 +2366,15 @@ export default function ProfileScreen() {
                 styles.completionBox
               }
             >
+
               <View
                 style={
                   styles.completionHeader
                 }
               >
+
                 <View>
+
                   <Text
                     style={
                       styles.completionTitle
@@ -744,6 +2391,7 @@ export default function ProfileScreen() {
                     Keep your profile
                     complete
                   </Text>
+
                 </View>
 
                 <Text
@@ -753,6 +2401,7 @@ export default function ProfileScreen() {
                 >
                   {profileCompletion}%
                 </Text>
+
               </View>
 
               <View
@@ -760,6 +2409,7 @@ export default function ProfileScreen() {
                   styles.progressTrack
                 }
               >
+
                 <View
                   style={[
                     styles.progressFill,
@@ -768,22 +2418,30 @@ export default function ProfileScreen() {
                     },
                   ]}
                 />
+
               </View>
+
             </View>
+
           </View>
 
-          {/* =========================
+
+          {/* =================================
               PRODUCTIVITY OVERVIEW
-          ========================== */}
+          ================================= */}
 
           <View
             style={
               styles.sectionHeader
             }
           >
+
             <View>
+
               <Text
-                style={styles.sectionTitle}
+                style={
+                  styles.sectionTitle
+                }
               >
                 Productivity Overview
               </Text>
@@ -796,8 +2454,11 @@ export default function ProfileScreen() {
                 Your current task
                 performance
               </Text>
+
             </View>
+
           </View>
+
 
           <View
             style={[
@@ -806,6 +2467,7 @@ export default function ProfileScreen() {
                 styles.statsGridWide,
             ]}
           >
+
             <StatCard
               icon="list-outline"
               value={totalTasks}
@@ -828,7 +2490,9 @@ export default function ProfileScreen() {
 
             <StatCard
               icon="time-outline"
-              value={pendingTasks}
+              value={
+                pendingTasks
+              }
               label="Pending"
               iconColor={
                 COLORS.orange
@@ -837,36 +2501,52 @@ export default function ProfileScreen() {
 
             <StatCard
               icon="bookmark-outline"
-              value={savedTasks}
+              value={
+                savedTasks
+              }
               label="Saved Tasks"
               iconColor={
                 COLORS.purple
               }
             />
+
           </View>
 
-          {/* =========================
+
+          {/* =================================
               PRODUCTIVITY SCORE
-          ========================== */}
+          ================================= */}
 
           <View
-            style={styles.scoreCard}
+            style={
+              styles.scoreCard
+            }
           >
+
             <View
-              style={styles.scoreIcon}
+              style={
+                styles.scoreIcon
+              }
             >
+
               <Ionicons
                 name="trending-up-outline"
                 size={26}
                 color="#FFFFFF"
               />
+
             </View>
 
             <View
-              style={styles.scoreContent}
+              style={
+                styles.scoreContent
+              }
             >
+
               <Text
-                style={styles.scoreTitle}
+                style={
+                  styles.scoreTitle
+                }
               >
                 Productivity Score
               </Text>
@@ -876,51 +2556,46 @@ export default function ProfileScreen() {
                   styles.scoreDescription
                 }
               >
-                {completionRate >= 80
+                {completionRate >=
+                80
                   ? 'Excellent! You are crushing your goals.'
-                  : completionRate >= 50
+                  : completionRate >=
+                      50
                     ? 'Great progress! Keep going.'
-                    : totalTasks === 0
+                    : totalTasks ===
+                        0
                       ? 'Create your first task to get started.'
                       : 'Keep completing tasks to improve your score.'}
               </Text>
+
             </View>
 
             <Text
-              style={styles.scoreValue}
+              style={
+                styles.scoreValue
+              }
             >
               {completionRate}%
             </Text>
+
           </View>
 
-          {/* =========================
+
+          {/* =================================
               PERSONAL INFORMATION
-          ========================== */}
+          ================================= */}
+
+          <SectionHeader
+            title="Personal Information"
+            subtitle="Keep your details updated"
+          />
 
           <View
             style={
-              styles.sectionHeader
+              styles.card
             }
           >
-            <View>
-              <Text
-                style={styles.sectionTitle}
-              >
-                Personal Information
-              </Text>
 
-              <Text
-                style={
-                  styles.sectionSubtitle
-                }
-              >
-                Keep your details
-                updated
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.card}>
             {renderInput(
               'Full Name',
               profile.name,
@@ -973,36 +2648,25 @@ export default function ProfileScreen() {
               'document-text-outline',
               true,
             )}
+
           </View>
 
-          {/* =========================
+
+          {/* =================================
               PROFESSIONAL LINKS
-          ========================== */}
+          ================================= */}
+
+          <SectionHeader
+            title="Professional Links"
+            subtitle="Connect your professional profiles"
+          />
 
           <View
             style={
-              styles.sectionHeader
+              styles.card
             }
           >
-            <View>
-              <Text
-                style={styles.sectionTitle}
-              >
-                Professional Links
-              </Text>
 
-              <Text
-                style={
-                  styles.sectionSubtitle
-                }
-              >
-                Connect your professional
-                profiles
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.card}>
             {renderInput(
               'LinkedIn',
               profile.linkedin,
@@ -1038,6 +2702,7 @@ export default function ProfileScreen() {
                 styles.linksPreview
               }
             >
+
               {profile.linkedin ? (
                 <TouchableOpacity
                   style={
@@ -1049,6 +2714,7 @@ export default function ProfileScreen() {
                     )
                   }
                 >
+
                   <Ionicons
                     name="logo-linkedin"
                     size={19}
@@ -1064,6 +2730,7 @@ export default function ProfileScreen() {
                   >
                     LinkedIn
                   </Text>
+
                 </TouchableOpacity>
               ) : null}
 
@@ -1078,10 +2745,13 @@ export default function ProfileScreen() {
                     )
                   }
                 >
+
                   <Ionicons
                     name="logo-github"
                     size={19}
-                    color={COLORS.text}
+                    color={
+                      COLORS.text
+                    }
                   />
 
                   <Text
@@ -1091,6 +2761,7 @@ export default function ProfileScreen() {
                   >
                     GitHub
                   </Text>
+
                 </TouchableOpacity>
               ) : null}
 
@@ -1105,6 +2776,7 @@ export default function ProfileScreen() {
                     )
                   }
                 >
+
                   <Ionicons
                     name="globe-outline"
                     size={19}
@@ -1120,48 +2792,42 @@ export default function ProfileScreen() {
                   >
                     Portfolio
                   </Text>
+
                 </TouchableOpacity>
               ) : null}
+
             </View>
+
           </View>
 
-          {/* =========================
+
+          {/* =================================
               DAILY GOAL
-          ========================== */}
+          ================================= */}
+
+          <SectionHeader
+            title="Daily Productivity Goal"
+            subtitle="Set how many tasks you want to complete every day"
+          />
 
           <View
             style={
-              styles.sectionHeader
+              styles.goalCard
             }
           >
-            <View>
-              <Text
-                style={styles.sectionTitle}
-              >
-                Daily Productivity Goal
-              </Text>
 
-              <Text
+            <View
+              style={
+                styles.goalTop
+              }
+            >
+
+              <View
                 style={
-                  styles.sectionSubtitle
+                  styles.goalIcon
                 }
               >
-                Set how many tasks you
-                want to complete every
-                day
-              </Text>
-            </View>
-          </View>
 
-          <View
-            style={styles.goalCard}
-          >
-            <View
-              style={styles.goalTop}
-            >
-              <View
-                style={styles.goalIcon}
-              >
                 <Ionicons
                   name="flag-outline"
                   size={25}
@@ -1169,13 +2835,19 @@ export default function ProfileScreen() {
                     COLORS.primary
                   }
                 />
+
               </View>
 
               <View
-                style={styles.goalInfo}
+                style={
+                  styles.goalInfo
+                }
               >
+
                 <Text
-                  style={styles.goalTitle}
+                  style={
+                    styles.goalTitle
+                  }
                 >
                   Today's Goal
                 </Text>
@@ -1189,6 +2861,7 @@ export default function ProfileScreen() {
                   {todayGoal} tasks
                   completed
                 </Text>
+
               </View>
 
               {editing ? (
@@ -1222,11 +2895,15 @@ export default function ProfileScreen() {
                   {todayGoal}
                 </Text>
               )}
+
             </View>
 
             <View
-              style={styles.goalTrack}
+              style={
+                styles.goalTrack
+              }
             >
+
               <View
                 style={[
                   styles.goalFill,
@@ -1235,11 +2912,15 @@ export default function ProfileScreen() {
                   },
                 ]}
               />
+
             </View>
 
             <View
-              style={styles.goalFooter}
+              style={
+                styles.goalFooter
+              }
             >
+
               <Text
                 style={
                   styles.goalFooterText
@@ -1261,41 +2942,27 @@ export default function ProfileScreen() {
                 )}{' '}
                 remaining
               </Text>
+
             </View>
+
           </View>
 
-          {/* =========================
+
+          {/* =================================
               ACHIEVEMENTS
-          ========================== */}
+          ================================= */}
 
-          <View
-            style={
-              styles.sectionHeader
-            }
-          >
-            <View>
-              <Text
-                style={styles.sectionTitle}
-              >
-                Achievements
-              </Text>
-
-              <Text
-                style={
-                  styles.sectionSubtitle
-                }
-              >
-                Milestones you have
-                unlocked
-              </Text>
-            </View>
-          </View>
+          <SectionHeader
+            title="Achievements"
+            subtitle="Milestones you have unlocked"
+          />
 
           <View
             style={
               styles.achievementGrid
             }
           >
+
             {achievements.map(
               (achievement) => (
                 <View
@@ -1308,6 +2975,7 @@ export default function ProfileScreen() {
                       styles.lockedAchievement,
                   ]}
                 >
+
                   <View
                     style={[
                       styles.achievementIcon,
@@ -1315,6 +2983,7 @@ export default function ProfileScreen() {
                         styles.lockedIcon,
                     ]}
                   >
+
                     <Ionicons
                       name={
                         achievement.unlocked
@@ -1328,6 +2997,7 @@ export default function ProfileScreen() {
                           : '#A7AFBC'
                       }
                     />
+
                   </View>
 
                   <Text
@@ -1359,6 +3029,7 @@ export default function ProfileScreen() {
                         styles.unlockedStatus,
                     ]}
                   >
+
                     <Text
                       style={[
                         styles.achievementStatusText,
@@ -1370,40 +3041,31 @@ export default function ProfileScreen() {
                         ? 'Unlocked'
                         : 'Locked'}
                     </Text>
+
                   </View>
+
                 </View>
               ),
             )}
+
           </View>
 
-          {/* =========================
+
+          {/* =================================
               APP PREFERENCES
-          ========================== */}
+          ================================= */}
+
+          <SectionHeader
+            title="App Preferences"
+            subtitle="Customize your Smart Todo experience"
+          />
 
           <View
             style={
-              styles.sectionHeader
+              styles.card
             }
           >
-            <View>
-              <Text
-                style={styles.sectionTitle}
-              >
-                App Preferences
-              </Text>
 
-              <Text
-                style={
-                  styles.sectionSubtitle
-                }
-              >
-                Customize your Smart
-                Todo experience
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.card}>
             <PreferenceRow
               icon="notifications-outline"
               title="Notifications"
@@ -1417,8 +3079,8 @@ export default function ProfileScreen() {
                     value,
                   ) =>
                     setSettings(
-                      (prev) => ({
-                        ...prev,
+                      (previous) => ({
+                        ...previous,
                         notifications:
                           value,
                       }),
@@ -1441,7 +3103,9 @@ export default function ProfileScreen() {
             />
 
             <View
-              style={styles.divider}
+              style={
+                styles.divider
+              }
             />
 
             <PreferenceRow
@@ -1461,6 +3125,7 @@ export default function ProfileScreen() {
                     styles.appearanceButton
                   }
                 >
+
                   <Text
                     style={
                       styles.appearanceText
@@ -1478,32 +3143,28 @@ export default function ProfileScreen() {
                       COLORS.muted
                     }
                   />
+
                 </TouchableOpacity>
               }
             />
+
           </View>
 
-          {/* =========================
+
+          {/* =================================
               QUICK ACTIONS
-          ========================== */}
+          ================================= */}
 
-          <View
-            style={
-              styles.sectionHeader
-            }
-          >
-            <Text
-              style={styles.sectionTitle}
-            >
-              Quick Actions
-            </Text>
-          </View>
+          <SectionHeader
+            title="Quick Actions"
+          />
 
           <View
             style={
               styles.quickActions
             }
           >
+
             <QuickAction
               icon="add-circle-outline"
               title="Create Task"
@@ -1525,7 +3186,7 @@ export default function ProfileScreen() {
             />
 
             <QuickAction
-              icon="settings-outline"
+              icon="information-circle-outline"
               title="About Smart Todo"
               onPress={() =>
                 router.push(
@@ -1533,21 +3194,149 @@ export default function ProfileScreen() {
                 )
               }
             />
+
           </View>
 
-          {/* =========================
+
+          {/* =================================
+              SHARE ALL RECORDS
+          ================================= */}
+
+          <View
+            style={
+              styles.shareSection
+            }
+          >
+
+            <View
+              style={
+                styles.shareCard
+              }
+            >
+
+              <View
+                style={
+                  styles.shareIconContainer
+                }
+              >
+
+                <Ionicons
+                  name="document-text"
+                  size={28}
+                  color="#FFFFFF"
+                />
+
+              </View>
+
+              <Text
+                style={
+                  styles.shareTitle
+                }
+              >
+                Share All Records
+              </Text>
+
+              <Text
+                style={
+                  styles.shareDescription
+                }
+              >
+                Generate a professional
+                Smart Life PDF report
+                containing your profile,
+                tasks, calendar schedule,
+                health and finance records.
+              </Text>
+
+              <View
+                style={
+                  styles.shareIncludes
+                }
+              >
+
+                <IncludeItem
+                  icon="person-outline"
+                  text="Profile"
+                />
+
+                <IncludeItem
+                  icon="checkmark-circle-outline"
+                  text="Tasks"
+                />
+
+                <IncludeItem
+                  icon="calendar-outline"
+                  text="Calendar"
+                />
+
+                <IncludeItem
+                  icon="heart-outline"
+                  text="Health"
+                />
+
+                <IncludeItem
+                  icon="wallet-outline"
+                  text="Finance"
+                />
+
+              </View>
+
+              <TouchableOpacity
+                onPress={
+                  shareAllRecords
+                }
+                disabled={sharing}
+                style={[
+                  styles.shareButton,
+                  sharing &&
+                    styles.shareButtonDisabled,
+                ]}
+                activeOpacity={0.8}
+              >
+
+                <Ionicons
+                  name={
+                    sharing
+                      ? 'hourglass-outline'
+                      : 'share-social-outline'
+                  }
+                  size={21}
+                  color="#FFFFFF"
+                />
+
+                <Text
+                  style={
+                    styles.shareButtonText
+                  }
+                >
+                  {sharing
+                    ? 'Preparing PDF...'
+                    : 'Share PDF'}
+                </Text>
+
+              </TouchableOpacity>
+
+            </View>
+
+          </View>
+
+
+          {/* =================================
               SAVE
-          ========================== */}
+          ================================= */}
 
           {editing && (
             <TouchableOpacity
-              onPress={saveProfile}
+              onPress={
+                saveProfile
+              }
               disabled={saving}
               style={
                 styles.saveButton
               }
               activeOpacity={0.8}
             >
+
               <Ionicons
                 name="save-outline"
                 size={21}
@@ -1563,24 +3352,31 @@ export default function ProfileScreen() {
                   ? 'Saving...'
                   : 'Save Profile & Settings'}
               </Text>
+
             </TouchableOpacity>
           )}
 
-          {/* =========================
+
+          {/* =================================
               RESET
-          ========================== */}
+          ================================= */}
 
           <TouchableOpacity
-            onPress={resetProfile}
+            onPress={
+              resetProfile
+            }
             style={
               styles.resetButton
             }
             activeOpacity={0.8}
           >
+
             <Ionicons
               name="refresh-outline"
               size={18}
-              color={COLORS.red}
+              color={
+                COLORS.red
+              }
             />
 
             <Text
@@ -1590,21 +3386,28 @@ export default function ProfileScreen() {
             >
               Reset Profile
             </Text>
+
           </TouchableOpacity>
 
+
           <Text
-            style={styles.footerText}
+            style={
+              styles.footerText
+            }
           >
             Smart Todo • Organize
             your day. Conquer your
             goals.
           </Text>
+
         </View>
+
       </ScrollView>
 
-      {/* =========================
+
+      {/* =====================================
           THEME MODAL
-      ========================== */}
+      ===================================== */}
 
       <Modal
         visible={themeModal}
@@ -1614,6 +3417,7 @@ export default function ProfileScreen() {
           setThemeModal(false)
         }
       >
+
         <Pressable
           style={
             styles.modalOverlay
@@ -1622,6 +3426,7 @@ export default function ProfileScreen() {
             setThemeModal(false)
           }
         >
+
           <Pressable
             style={
               styles.themeModal
@@ -1630,12 +3435,15 @@ export default function ProfileScreen() {
               event.stopPropagation()
             }
           >
+
             <View
               style={
                 styles.modalHeader
               }
             >
+
               <View>
+
                 <Text
                   style={
                     styles.modalTitle
@@ -1649,9 +3457,10 @@ export default function ProfileScreen() {
                     styles.modalSubtitle
                   }
                 >
-                  Select how Smart
-                  Todo should look
+                  Select how Smart Todo
+                  should look
                 </Text>
+
               </View>
 
               <TouchableOpacity
@@ -1661,6 +3470,7 @@ export default function ProfileScreen() {
                   )
                 }
               >
+
                 <Ionicons
                   name="close"
                   size={23}
@@ -1668,7 +3478,9 @@ export default function ProfileScreen() {
                     COLORS.text
                   }
                 />
+
               </TouchableOpacity>
+
             </View>
 
             {(
@@ -1678,6 +3490,7 @@ export default function ProfileScreen() {
                 'Dark',
               ] as Appearance[]
             ).map((theme) => (
+
               <TouchableOpacity
                 key={theme}
                 onPress={() =>
@@ -1692,16 +3505,19 @@ export default function ProfileScreen() {
                     styles.selectedTheme,
                 ]}
               >
+
                 <View
                   style={
                     styles.themeOptionLeft
                   }
                 >
+
                   <View
                     style={
                       styles.themeIcon
                     }
                   >
+
                     <Ionicons
                       name={
                         theme ===
@@ -1717,6 +3533,7 @@ export default function ProfileScreen() {
                         COLORS.primary
                       }
                     />
+
                   </View>
 
                   <Text
@@ -1726,6 +3543,7 @@ export default function ProfileScreen() {
                   >
                     {theme}
                   </Text>
+
                 </View>
 
                 {selectedAppearance ===
@@ -1737,19 +3555,106 @@ export default function ProfileScreen() {
                         COLORS.primary
                       }
                     />
-                  )}
+                )}
+
               </TouchableOpacity>
+
             ))}
+
           </Pressable>
+
         </Pressable>
+
       </Modal>
+
     </SafeAreaView>
   );
 }
 
-/* ==================================
+
+/* =========================================
+   SECTION HEADER
+========================================= */
+
+function SectionHeader({
+  title,
+  subtitle,
+}: {
+  title: string;
+  subtitle?: string;
+}) {
+  return (
+    <View
+      style={
+        styles.sectionHeader
+      }
+    >
+
+      <Text
+        style={
+          styles.sectionTitle
+        }
+      >
+        {title}
+      </Text>
+
+      {subtitle ? (
+        <Text
+          style={
+            styles.sectionSubtitle
+          }
+        >
+          {subtitle}
+        </Text>
+      ) : null}
+
+    </View>
+  );
+}
+
+
+/* =========================================
+   INCLUDE ITEM
+========================================= */
+
+function IncludeItem({
+  icon,
+  text,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  text: string;
+}) {
+  return (
+    <View
+      style={
+        styles.includeItem
+      }
+    >
+
+      <Ionicons
+        name={icon}
+        size={15}
+        color={
+          COLORS.green
+        }
+      />
+
+      <Text
+        style={
+          styles.includeText
+        }
+      >
+        {text}
+      </Text>
+
+    </View>
+  );
+}
+
+
+/* =========================================
    STAT CARD
-================================== */
+========================================= */
 
 function StatCard({
   icon,
@@ -1763,7 +3668,12 @@ function StatCard({
   iconColor: string;
 }) {
   return (
-    <View style={styles.statCard}>
+    <View
+      style={
+        styles.statCard
+      }
+    >
+
       <View
         style={[
           styles.statIcon,
@@ -1773,31 +3683,39 @@ function StatCard({
           },
         ]}
       >
+
         <Ionicons
           name={icon}
           size={22}
           color={iconColor}
         />
+
       </View>
 
       <Text
-        style={styles.statValue}
+        style={
+          styles.statValue
+        }
       >
         {value}
       </Text>
 
       <Text
-        style={styles.statLabel}
+        style={
+          styles.statLabel
+        }
       >
         {label}
       </Text>
+
     </View>
   );
 }
 
-/* ==================================
+
+/* =========================================
    PREFERENCE ROW
-================================== */
+========================================= */
 
 function PreferenceRow({
   icon,
@@ -1816,21 +3734,27 @@ function PreferenceRow({
         styles.preferenceRow
       }
     >
+
       <View
         style={
           styles.preferenceLeft
         }
       >
+
         <View
           style={
             styles.preferenceIcon
           }
         >
+
           <Ionicons
             name={icon}
             size={21}
-            color={COLORS.primary}
+            color={
+              COLORS.primary
+            }
           />
+
         </View>
 
         <View
@@ -1838,6 +3762,7 @@ function PreferenceRow({
             styles.preferenceText
           }
         >
+
           <Text
             style={
               styles.preferenceTitle
@@ -1853,17 +3778,21 @@ function PreferenceRow({
           >
             {description}
           </Text>
+
         </View>
+
       </View>
 
       {right}
+
     </View>
   );
 }
 
-/* ==================================
+
+/* =========================================
    QUICK ACTION
-================================== */
+========================================= */
 
 function QuickAction({
   icon,
@@ -1882,16 +3811,21 @@ function QuickAction({
       }
       activeOpacity={0.8}
     >
+
       <View
         style={
           styles.quickActionIcon
         }
       >
+
         <Ionicons
           name={icon}
           size={22}
-          color={COLORS.primary}
+          color={
+            COLORS.primary
+          }
         />
+
       </View>
 
       <Text
@@ -1905,17 +3839,22 @@ function QuickAction({
       <Ionicons
         name="chevron-forward"
         size={18}
-        color={COLORS.muted}
+        color={
+          COLORS.muted
+        }
       />
+
     </TouchableOpacity>
   );
 }
 
-/* ==================================
+
+/* =========================================
    STYLES
-================================== */
+========================================= */
 
 const styles = StyleSheet.create({
+
   safeArea: {
     flex: 1,
     backgroundColor:
@@ -1958,9 +3897,11 @@ const styles = StyleSheet.create({
     width: 43,
     height: 43,
     borderRadius: 13,
-    backgroundColor: '#FFFFFF',
+    backgroundColor:
+      '#FFFFFF',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent:
+      'center',
     borderWidth: 1,
     borderColor:
       COLORS.border,
@@ -1969,12 +3910,14 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 26,
     fontWeight: '800',
-    color: COLORS.text,
+    color:
+      COLORS.text,
   },
 
   headerSubtitle: {
     fontSize: 13,
-    color: COLORS.muted,
+    color:
+      COLORS.muted,
     marginTop: 3,
   },
 
@@ -1998,11 +3941,13 @@ const styles = StyleSheet.create({
   },
 
   cancelButton: {
-    backgroundColor: '#E9EDF3',
+    backgroundColor:
+      '#E9EDF3',
   },
 
   cancelButtonText: {
-    color: COLORS.text,
+    color:
+      COLORS.text,
   },
 
   heroCard: {
@@ -2056,7 +4001,8 @@ const styles = StyleSheet.create({
     justifyContent:
       'center',
     borderWidth: 3,
-    borderColor: '#FFFFFF',
+    borderColor:
+      '#FFFFFF',
   },
 
   heroInfo: {
@@ -2066,12 +4012,14 @@ const styles = StyleSheet.create({
   profileName: {
     fontSize: 25,
     fontWeight: '800',
-    color: COLORS.text,
+    color:
+      COLORS.text,
   },
 
   profileProfession: {
     fontSize: 15,
-    color: COLORS.primary,
+    color:
+      COLORS.primary,
     fontWeight: '700',
     marginTop: 4,
   },
@@ -2091,7 +4039,8 @@ const styles = StyleSheet.create({
   },
 
   metaText: {
-    color: COLORS.muted,
+    color:
+      COLORS.muted,
     fontSize: 13,
   },
 
@@ -2111,26 +4060,30 @@ const styles = StyleSheet.create({
   },
 
   completionTitle: {
-    color: COLORS.text,
+    color:
+      COLORS.text,
     fontSize: 14,
     fontWeight: '800',
   },
 
   completionSubtitle: {
-    color: COLORS.muted,
+    color:
+      COLORS.muted,
     fontSize: 12,
     marginTop: 2,
   },
 
   completionPercent: {
-    color: COLORS.primary,
+    color:
+      COLORS.primary,
     fontSize: 17,
     fontWeight: '800',
   },
 
   progressTrack: {
     height: 9,
-    backgroundColor: '#E8EDF4',
+    backgroundColor:
+      '#E8EDF4',
     borderRadius: 20,
     overflow: 'hidden',
     marginTop: 11,
@@ -2151,11 +4104,13 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 19,
     fontWeight: '800',
-    color: COLORS.text,
+    color:
+      COLORS.text,
   },
 
   sectionSubtitle: {
-    color: COLORS.muted,
+    color:
+      COLORS.muted,
     fontSize: 12.5,
     marginTop: 3,
   },
@@ -2197,12 +4152,14 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 25,
     fontWeight: '800',
-    color: COLORS.text,
+    color:
+      COLORS.text,
   },
 
   statLabel: {
     fontSize: 12,
-    color: COLORS.muted,
+    color:
+      COLORS.muted,
     marginTop: 2,
   },
 
@@ -2238,19 +4195,22 @@ const styles = StyleSheet.create({
   scoreTitle: {
     fontSize: 14,
     fontWeight: '800',
-    color: COLORS.text,
+    color:
+      COLORS.text,
   },
 
   scoreDescription: {
     fontSize: 12,
-    color: COLORS.muted,
+    color:
+      COLORS.muted,
     marginTop: 3,
   },
 
   scoreValue: {
     fontSize: 23,
     fontWeight: '900',
-    color: COLORS.primary,
+    color:
+      COLORS.primary,
   },
 
   card: {
@@ -2269,7 +4229,8 @@ const styles = StyleSheet.create({
   },
 
   inputLabel: {
-    color: COLORS.text,
+    color:
+      COLORS.text,
     fontSize: 13,
     fontWeight: '700',
     marginBottom: 7,
@@ -2289,7 +4250,8 @@ const styles = StyleSheet.create({
   },
 
   multilineWrapper: {
-    alignItems: 'flex-start',
+    alignItems:
+      'flex-start',
     paddingVertical: 10,
   },
 
@@ -2299,19 +4261,23 @@ const styles = StyleSheet.create({
 
   input: {
     flex: 1,
-    color: COLORS.text,
+    color:
+      COLORS.text,
     fontSize: 14,
     minHeight: 46,
-    outlineStyle: 'none',
+    outlineStyle:
+      'none',
   } as any,
 
   disabledInput: {
-    color: '#4E5969',
+    color:
+      '#4E5969',
   },
 
   multilineInput: {
     minHeight: 85,
-    textAlignVertical: 'top',
+    textAlignVertical:
+      'top',
   },
 
   linksPreview: {
@@ -2336,7 +4302,8 @@ const styles = StyleSheet.create({
   },
 
   linkButtonText: {
-    color: COLORS.text,
+    color:
+      COLORS.text,
     fontSize: 12,
     fontWeight: '700',
   },
@@ -2376,19 +4343,22 @@ const styles = StyleSheet.create({
   goalTitle: {
     fontSize: 14,
     fontWeight: '800',
-    color: COLORS.text,
+    color:
+      COLORS.text,
   },
 
   goalSubtitle: {
     fontSize: 12,
-    color: COLORS.muted,
+    color:
+      COLORS.muted,
     marginTop: 3,
   },
 
   goalNumber: {
     fontSize: 24,
     fontWeight: '900',
-    color: COLORS.primary,
+    color:
+      COLORS.primary,
   },
 
   goalInput: {
@@ -2401,10 +4371,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 18,
     fontWeight: '800',
-    color: COLORS.primary,
+    color:
+      COLORS.primary,
     backgroundColor:
       '#F7FAFF',
-    outlineStyle: 'none',
+    outlineStyle:
+      'none',
   } as any,
 
   goalTrack: {
@@ -2431,7 +4403,8 @@ const styles = StyleSheet.create({
   },
 
   goalFooterText: {
-    color: COLORS.muted,
+    color:
+      COLORS.muted,
     fontSize: 12,
     fontWeight: '600',
   },
@@ -2482,15 +4455,18 @@ const styles = StyleSheet.create({
   achievementTitle: {
     fontSize: 14,
     fontWeight: '800',
-    color: COLORS.text,
+    color:
+      COLORS.text,
   },
 
   lockedText: {
-    color: '#7C8594',
+    color:
+      '#7C8594',
   },
 
   achievementDescription: {
-    color: COLORS.muted,
+    color:
+      COLORS.muted,
     fontSize: 11.5,
     marginTop: 3,
     lineHeight: 17,
@@ -2512,13 +4488,15 @@ const styles = StyleSheet.create({
   },
 
   achievementStatusText: {
-    color: '#8B95A5',
+    color:
+      '#8B95A5',
     fontSize: 10,
     fontWeight: '800',
   },
 
   unlockedStatusText: {
-    color: COLORS.green,
+    color:
+      COLORS.green,
   },
 
   preferenceRow: {
@@ -2553,13 +4531,15 @@ const styles = StyleSheet.create({
   },
 
   preferenceTitle: {
-    color: COLORS.text,
+    color:
+      COLORS.text,
     fontSize: 14,
     fontWeight: '800',
   },
 
   preferenceDescription: {
-    color: COLORS.muted,
+    color:
+      COLORS.muted,
     fontSize: 11.5,
     marginTop: 3,
   },
@@ -2583,7 +4563,8 @@ const styles = StyleSheet.create({
   },
 
   appearanceText: {
-    color: COLORS.text,
+    color:
+      COLORS.text,
     fontSize: 12,
     fontWeight: '700',
   },
@@ -2619,10 +4600,109 @@ const styles = StyleSheet.create({
 
   quickActionText: {
     flex: 1,
-    color: COLORS.text,
+    color:
+      COLORS.text,
     fontSize: 13,
     fontWeight: '700',
     marginLeft: 12,
+  },
+
+  /* =====================================
+     SHARE PDF
+  ===================================== */
+
+  shareSection: {
+    marginBottom: 22,
+  },
+
+  shareCard: {
+    backgroundColor:
+      '#FFFFFF',
+    borderRadius: 21,
+    borderWidth: 1,
+    borderColor:
+      '#D9E6F8',
+    padding: 20,
+    overflow: 'hidden',
+  },
+
+  shareIconContainer: {
+    width: 58,
+    height: 58,
+    borderRadius: 17,
+    backgroundColor:
+      COLORS.primary,
+    alignItems: 'center',
+    justifyContent:
+      'center',
+    marginBottom: 14,
+  },
+
+  shareTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color:
+      COLORS.text,
+  },
+
+  shareDescription: {
+    fontSize: 12.5,
+    color:
+      COLORS.muted,
+    lineHeight: 19,
+    marginTop: 6,
+  },
+
+  shareIncludes: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginTop: 14,
+    marginBottom: 17,
+  },
+
+  includeItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+
+  includeText: {
+    fontSize: 11,
+    color:
+      '#536071',
+    fontWeight: '700',
+  },
+
+  shareButton: {
+    minHeight: 53,
+    borderRadius: 14,
+    backgroundColor:
+      COLORS.primary,
+    alignItems: 'center',
+    justifyContent:
+      'center',
+    flexDirection: 'row',
+    gap: 9,
+    shadowColor:
+      COLORS.primary,
+    shadowOffset: {
+      width: 0,
+      height: 5,
+    },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+
+  shareButtonDisabled: {
+    opacity: 0.65,
+  },
+
+  shareButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
   },
 
   saveButton: {
@@ -2660,18 +4740,24 @@ const styles = StyleSheet.create({
   },
 
   resetButtonText: {
-    color: COLORS.red,
+    color:
+      COLORS.red,
     fontSize: 13,
     fontWeight: '700',
   },
 
   footerText: {
     textAlign: 'center',
-    color: '#9AA3B2',
+    color:
+      '#9AA3B2',
     fontSize: 11,
     marginTop: 22,
     lineHeight: 18,
   },
+
+  /* =====================================
+     MODAL
+  ===================================== */
 
   modalOverlay: {
     flex: 1,
@@ -2704,12 +4790,14 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 19,
     fontWeight: '800',
-    color: COLORS.text,
+    color:
+      COLORS.text,
   },
 
   modalSubtitle: {
     fontSize: 12,
-    color: COLORS.muted,
+    color:
+      COLORS.muted,
     marginTop: 3,
   },
 
@@ -2752,8 +4840,10 @@ const styles = StyleSheet.create({
   },
 
   themeText: {
-    color: COLORS.text,
+    color:
+      COLORS.text,
     fontSize: 14,
     fontWeight: '700',
   },
+
 });

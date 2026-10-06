@@ -19,8 +19,26 @@ export default function AboutScreen() {
 
   const isTablet = width >= 600;
 
+  /*
+   * =========================================================
+   * OPEN PAGE
+   * =========================================================
+   */
   const openPage = (path: string) => {
     router.push(path as any);
+  };
+
+  /*
+   * =========================================================
+   * BACK BUTTON
+   * =========================================================
+   */
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/task' as any);
+    }
   };
 
   return (
@@ -32,14 +50,16 @@ export default function AboutScreen() {
           isTablet && styles.tabletContainer,
         ]}
       >
-        {/* =========================
+
+        {/* =====================================================
             HEADER
-        ========================= */}
+        ===================================================== */}
 
         <View style={styles.header}>
+
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.back()}
+            onPress={handleBack}
             activeOpacity={0.75}
           >
             <Ionicons
@@ -54,16 +74,18 @@ export default function AboutScreen() {
           </Text>
 
           <View style={styles.headerPlaceholder} />
+
         </View>
 
-        {/* =========================
+        {/* =====================================================
             HERO
-        ========================= */}
+        ===================================================== */}
 
         <View style={styles.heroCard}>
+
           <View style={styles.heroIcon}>
             <Ionicons
-              name="checkmark-done"
+              name="sparkles"
               size={42}
               color="#FFFFFF"
             />
@@ -74,34 +96,55 @@ export default function AboutScreen() {
           </Text>
 
           <Text style={styles.tagline}>
-            Organize your day. Conquer your goals.
+            Organize. Track. Grow. Achieve.
           </Text>
 
           <Text style={styles.heroDescription}>
-            A simple and intelligent productivity app
-            designed to help you manage tasks, set reminders,
-            plan your day and stay focused on what matters.
+            More than a Todo app — Smart Todo helps you
+            manage tasks, reminders, health, fitness,
+            finances and everyday productivity in one
+            smart workspace.
           </Text>
 
-          <View style={styles.versionBadge}>
-            <Text style={styles.versionText}>
-              Version 1.0.0
-            </Text>
+          <View style={styles.badgeRow}>
+
+            <View style={styles.versionBadge}>
+              <Text style={styles.versionText}>
+                Version 2.0
+              </Text>
+            </View>
+
+            <View style={styles.smartBadge}>
+
+              <Ionicons
+                name="flash"
+                size={13}
+                color="#126EED"
+              />
+
+              <Text style={styles.smartBadgeText}>
+                Smart Life
+              </Text>
+
+            </View>
+
           </View>
+
         </View>
 
-        {/* =========================
-            QUICK FEATURES
-        ========================= */}
+        {/* =====================================================
+            PRODUCTIVITY
+        ===================================================== */}
 
         <View style={styles.sectionHeader}>
+
           <View>
             <Text style={styles.sectionTitle}>
-              Explore Smart Todo
+              Productivity
             </Text>
 
             <Text style={styles.sectionSubtitle}>
-              Tap a feature to learn more
+              Everything you need to stay organized
             </Text>
           </View>
 
@@ -110,90 +153,229 @@ export default function AboutScreen() {
             size={25}
             color="#126EED"
           />
-        </View>
 
-        {/* =========================
-            MANAGE TASKS
-        ========================= */}
+        </View>
 
         <FeatureCard
           icon="checkmark-circle-outline"
           title="Manage Tasks"
           description="Create, edit, complete and delete your daily tasks."
           iconBackground="#EAF2FF"
+          iconColor="#126EED"
           onPress={() => openPage('/manage-tasks')}
         />
-
-        {/* =========================
-            SMART REMINDERS
-        ========================= */}
 
         <FeatureCard
           icon="notifications-outline"
           title="Smart Reminders"
-          description="Set reminders and never miss an important task."
+          description="Set date and time reminders so you never miss important tasks."
           iconBackground="#FFF4E5"
           iconColor="#F59E0B"
           onPress={() => openPage('/smart-reminders')}
         />
 
-        {/* =========================
-            TRACK PROGRESS
-        ========================= */}
-
         <FeatureCard
           icon="bar-chart-outline"
           title="Track Progress"
-          description="Monitor completed tasks and understand your productivity."
+          description="Monitor completed tasks, pending work and productivity progress."
           iconBackground="#EAFBF2"
           iconColor="#16A34A"
           onPress={() => openPage('/track-progress')}
         />
 
-        {/* =========================
-            ORGANIZE CATEGORIES
-        ========================= */}
-
         <FeatureCard
           icon="folder-open-outline"
           title="Organize Categories"
-          description="Keep Personal, Work and Errands tasks organized."
+          description="Keep Personal, Work, Study, Health and Shopping tasks organized."
           iconBackground="#F3EFFF"
           iconColor="#8B5CF6"
           onPress={() => openPage('/organize-categories')}
         />
 
-        {/* =========================
-            CALENDAR PLANNING
-        ========================= */}
-
         <FeatureCard
           icon="calendar-outline"
           title="Calendar Planning"
-          description="Plan upcoming tasks and manage your schedule easily."
+          description="Plan your day, check upcoming tasks and manage your schedule."
           iconBackground="#FFF0F3"
           iconColor="#EC4899"
           onPress={() => openPage('/calendar-planning')}
         />
 
-        {/* =========================
-            PERSONALIZE
-        ========================= */}
-
         <FeatureCard
           icon="color-palette-outline"
           title="Personalize App"
-          description="Customize your Smart Todo experience and preferences."
+          description="Customize your profile, notifications, appearance and preferences."
           iconBackground="#EAF7FF"
           iconColor="#0891B2"
           onPress={() => openPage('/personalize-app')}
         />
 
-        {/* =========================
-            HOW IT WORKS
-        ========================= */}
+        {/* =====================================================
+            HEALTH & FITNESS
+        ===================================================== */}
 
-        <Text style={styles.sectionTitle}>
+        <View style={styles.sectionHeaderHealth}>
+
+          <View>
+            <Text style={styles.sectionTitle}>
+              Health & Fitness
+            </Text>
+
+            <Text style={styles.sectionSubtitle}>
+              Turn your daily routine into a healthier lifestyle
+            </Text>
+          </View>
+
+          <Ionicons
+            name="fitness-outline"
+            size={25}
+            color="#16A34A"
+          />
+
+        </View>
+
+        <FeatureCard
+          icon="fitness-outline"
+          title="Health & Fitness"
+          description="Track daily activity, workouts, calories and healthy habits."
+          iconBackground="#EAFBF2"
+          iconColor="#16A34A"
+          onPress={() => openPage('/health-fitness')}
+        />
+
+        <FeatureCard
+          icon="walk-outline"
+          title="Steps Counter"
+          description="Track your daily walking steps and monitor your activity goals."
+          iconBackground="#EAF7FF"
+          iconColor="#0891B2"
+          onPress={() => openPage('/health-fitness')}
+        />
+
+        <FeatureCard
+          icon="flame-outline"
+          title="Calories Burned"
+          description="Estimate calories burned from your daily movement and workouts."
+          iconBackground="#FFF1E8"
+          iconColor="#F97316"
+          onPress={() => openPage('/health-fitness')}
+        />
+
+        <FeatureCard
+          icon="water-outline"
+          title="Water Intake"
+          description="Track your daily water intake and build a healthy hydration habit."
+          iconBackground="#EAF7FF"
+          iconColor="#0284C7"
+          onPress={() => openPage('/health-fitness')}
+        />
+
+        {/* =====================================================
+            FINANCE & MONEY
+        ===================================================== */}
+
+        <View style={styles.sectionHeaderFinance}>
+
+          <View>
+            <Text style={styles.sectionTitle}>
+              Finance & Money
+            </Text>
+
+            <Text style={styles.sectionSubtitle}>
+              Keep your daily spending organized
+            </Text>
+          </View>
+
+          <Ionicons
+            name="wallet-outline"
+            size={25}
+            color="#7C3AED"
+          />
+
+        </View>
+
+        {/* FINANCE DASHBOARD */}
+
+        <FeatureCard
+          icon="wallet-outline"
+          title="Finance Dashboard"
+          description="View income, expenses, balance and your monthly financial overview."
+          iconBackground="#F3EFFF"
+          iconColor="#7C3AED"
+          onPress={() => openPage('/finance')}
+        />
+
+        {/* EXPENSE TRACKER */}
+
+        <FeatureCard
+          icon="receipt-outline"
+          title="Expense Tracker"
+          description="Record your daily expenses and understand where your money goes."
+          iconBackground="#FFF0F3"
+          iconColor="#DB2777"
+          onPress={() => openPage('/expense-tracker')}
+        />
+
+        {/* UPI & PAYMENTS */}
+
+        <FeatureCard
+          icon="phone-portrait-outline"
+          title="UPI & Payments"
+          description="Track GPay, PhonePe, Paytm and other UPI payment records."
+          iconBackground="#EAF2FF"
+          iconColor="#126EED"
+          onPress={() => openPage('/finance')}
+        />
+
+        {/* SAVINGS GOALS */}
+
+        <FeatureCard
+          icon="trending-up-outline"
+          title="Savings Goals"
+          description="Set savings targets and track your progress toward financial goals."
+          iconBackground="#EAFBF2"
+          iconColor="#16A34A"
+          onPress={() => openPage('/savings-goals')}
+        />
+
+        {/* =====================================================
+            SMART INSIGHTS
+        ===================================================== */}
+
+        <View style={styles.sectionHeaderInsights}>
+
+          <View>
+            <Text style={styles.sectionTitle}>
+              Smart Insights
+            </Text>
+
+            <Text style={styles.sectionSubtitle}>
+              Understand your daily performance
+            </Text>
+          </View>
+
+          <Ionicons
+            name="analytics-outline"
+            size={25}
+            color="#EA580C"
+          />
+
+        </View>
+
+        <FeatureCard
+          icon="analytics-outline"
+          title="Daily Insights"
+          description="Get an overview of tasks, activity, expenses and daily productivity."
+          iconBackground="#FFF4E5"
+          iconColor="#EA580C"
+          onPress={() => openPage('/daily-insights')}
+        />
+
+        {/* =====================================================
+            HOW IT WORKS
+        ===================================================== */}
+
+        <Text style={styles.howTitle}>
           How Smart Todo Helps
         </Text>
 
@@ -202,35 +384,95 @@ export default function AboutScreen() {
           <Step
             number="01"
             icon="add-circle-outline"
-            title="Add Your Tasks"
-            description="Create tasks with dates, times, categories and notes."
+            title="Plan Your Day"
+            description="Create tasks, schedules, reminders and personal goals."
           />
 
           <View style={styles.stepLine} />
 
           <Step
             number="02"
-            icon="notifications-outline"
-            title="Set Reminders"
-            description="Choose when you want Smart Todo to remind you."
+            icon="fitness-outline"
+            title="Track Your Activity"
+            description="Monitor steps, calories, water and healthy daily habits."
           />
 
           <View style={styles.stepLine} />
 
           <Step
             number="03"
-            icon="checkmark-done-outline"
-            title="Complete & Track"
-            description="Finish tasks and monitor your productivity."
+            icon="wallet-outline"
+            title="Manage Your Money"
+            description="Track expenses, payments, savings and financial goals."
+          />
+
+          <View style={styles.stepLine} />
+
+          <Step
+            number="04"
+            icon="analytics-outline"
+            title="Understand Your Progress"
+            description="See productivity, health and finance insights in one place."
           />
 
         </View>
 
-        {/* =========================
+        {/* =====================================================
+            SMART LIFE DASHBOARD
+        ===================================================== */}
+
+        <View style={styles.smartLifeCard}>
+
+          <View style={styles.smartLifeIcon}>
+            <Ionicons
+              name="sparkles"
+              size={30}
+              color="#FFFFFF"
+            />
+          </View>
+
+          <Text style={styles.smartLifeTitle}>
+            Your Smart Life Dashboard
+          </Text>
+
+          <Text style={styles.smartLifeText}>
+            Tasks + Reminders + Fitness + Health + Finance
+            + Insights — everything you need to organize
+            your everyday life in one place.
+          </Text>
+
+          <View style={styles.smartLifeRow}>
+
+            <MiniFeature
+              icon="checkmark-circle"
+              text="Tasks"
+            />
+
+            <MiniFeature
+              icon="fitness"
+              text="Health"
+            />
+
+            <MiniFeature
+              icon="wallet"
+              text="Finance"
+            />
+
+            <MiniFeature
+              icon="analytics"
+              text="Insights"
+            />
+
+          </View>
+
+        </View>
+
+        {/* =====================================================
             MISSION
-        ========================= */}
+        ===================================================== */}
 
         <View style={styles.missionCard}>
+
           <View style={styles.missionIcon}>
             <Ionicons
               name="bulb-outline"
@@ -245,17 +487,19 @@ export default function AboutScreen() {
 
           <Text style={styles.missionText}>
             Smart Todo is built to make everyday planning
-            simple, organized and stress-free. Instead of
-            remembering everything, let Smart Todo remember
-            it for you.
+            simple, organized and meaningful. Instead of
+            remembering everything, let Smart Todo help
+            you manage it.
           </Text>
+
         </View>
 
-        {/* =========================
+        {/* =====================================================
             MOTIVATION
-        ========================= */}
+        ===================================================== */}
 
         <View style={styles.quoteCard}>
+
           <Ionicons
             name="sparkles"
             size={26}
@@ -263,23 +507,25 @@ export default function AboutScreen() {
           />
 
           <Text style={styles.quote}>
-            "Small tasks completed consistently
-            create big results."
+            "Plan your day. Track your progress.
+            Improve your life."
           </Text>
 
           <Text style={styles.quoteAuthor}>
             — Smart Todo
           </Text>
+
         </View>
 
-        {/* =========================
+        {/* =====================================================
             FOOTER
-        ========================= */}
+        ===================================================== */}
 
         <View style={styles.footer}>
+
           <View style={styles.footerIcon}>
             <Ionicons
-              name="checkmark-done"
+              name="sparkles"
               size={22}
               color="#126EED"
             />
@@ -290,12 +536,13 @@ export default function AboutScreen() {
           </Text>
 
           <Text style={styles.footerText}>
-            Stay organized. Stay focused. Stay productive.
+            Stay organized. Stay healthy. Stay financially smart.
           </Text>
 
           <Text style={styles.copyright}>
             © 2026 Smart Todo
           </Text>
+
         </View>
 
       </ScrollView>
@@ -303,9 +550,9 @@ export default function AboutScreen() {
   );
 }
 
-/* =====================================================
+/* =========================================================
    FEATURE CARD
-===================================================== */
+========================================================= */
 
 function FeatureCard({
   icon,
@@ -328,6 +575,7 @@ function FeatureCard({
       onPress={onPress}
       activeOpacity={0.75}
     >
+
       <View
         style={[
           styles.featureIcon,
@@ -344,6 +592,7 @@ function FeatureCard({
       </View>
 
       <View style={styles.featureContent}>
+
         <Text style={styles.featureTitle}>
           {title}
         </Text>
@@ -351,6 +600,7 @@ function FeatureCard({
         <Text style={styles.featureDescription}>
           {description}
         </Text>
+
       </View>
 
       <View style={styles.arrowContainer}>
@@ -360,13 +610,14 @@ function FeatureCard({
           color="#9CA3AF"
         />
       </View>
+
     </TouchableOpacity>
   );
 }
 
-/* =====================================================
+/* =========================================================
    STEP
-===================================================== */
+========================================================= */
 
 function Step({
   number,
@@ -381,6 +632,7 @@ function Step({
 }) {
   return (
     <View style={styles.step}>
+
       <View style={styles.stepNumber}>
         <Text style={styles.stepNumberText}>
           {number}
@@ -396,6 +648,7 @@ function Step({
       </View>
 
       <View style={styles.stepContent}>
+
         <Text style={styles.stepTitle}>
           {title}
         </Text>
@@ -403,16 +656,47 @@ function Step({
         <Text style={styles.stepDescription}>
           {description}
         </Text>
+
       </View>
+
     </View>
   );
 }
 
-/* =====================================================
+/* =========================================================
+   MINI FEATURE
+========================================================= */
+
+function MiniFeature({
+  icon,
+  text,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  text: string;
+}) {
+  return (
+    <View style={styles.miniFeature}>
+
+      <Ionicons
+        name={icon}
+        size={18}
+        color="#FFFFFF"
+      />
+
+      <Text style={styles.miniFeatureText}>
+        {text}
+      </Text>
+
+    </View>
+  );
+}
+
+/* =========================================================
    STYLES
-===================================================== */
+========================================================= */
 
 const styles = StyleSheet.create({
+
   safeArea: {
     flex: 1,
     backgroundColor: '#F5F7FB',
@@ -426,6 +710,9 @@ const styles = StyleSheet.create({
 
   tabletContainer: {
     paddingHorizontal: 60,
+    maxWidth: 1100,
+    alignSelf: 'center',
+    width: '100%',
   },
 
   /* HEADER */
@@ -466,7 +753,7 @@ const styles = StyleSheet.create({
     paddingVertical: 30,
     alignItems: 'center',
     marginBottom: 28,
-    elevation: 4,
+    elevation: 5,
   },
 
   heroIcon: {
@@ -481,14 +768,14 @@ const styles = StyleSheet.create({
 
   appName: {
     color: '#FFFFFF',
-    fontSize: 29,
+    fontSize: 30,
     fontWeight: '900',
   },
 
   tagline: {
     color: '#EAF2FF',
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '800',
     textAlign: 'center',
     marginTop: 6,
   },
@@ -499,6 +786,14 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     textAlign: 'center',
     marginTop: 16,
+    maxWidth: 700,
+  },
+
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 18,
   },
 
   versionBadge: {
@@ -506,7 +801,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     paddingVertical: 7,
     borderRadius: 20,
-    marginTop: 18,
   },
 
   versionText: {
@@ -515,12 +809,52 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 
+  smartBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 13,
+    paddingVertical: 7,
+    borderRadius: 20,
+  },
+
+  smartBadgeText: {
+    color: '#126EED',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
   /* SECTION */
 
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginBottom: 13,
+  },
+
+  sectionHeaderHealth: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 18,
+    marginBottom: 13,
+  },
+
+  sectionHeaderFinance: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 18,
+    marginBottom: 13,
+  },
+
+  sectionHeaderInsights: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 18,
     marginBottom: 13,
   },
 
@@ -536,6 +870,13 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     marginTop: -7,
     marginBottom: 12,
+  },
+
+  howTitle: {
+    fontSize: 19,
+    fontWeight: '900',
+    color: '#111827',
+    marginBottom: 13,
   },
 
   /* FEATURE */
@@ -653,6 +994,66 @@ const styles = StyleSheet.create({
     marginVertical: 5,
   },
 
+  /* SMART LIFE */
+
+  smartLifeCard: {
+    backgroundColor: '#111827',
+    borderRadius: 25,
+    padding: 24,
+    alignItems: 'center',
+    marginBottom: 20,
+    elevation: 4,
+  },
+
+  smartLifeIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 19,
+    backgroundColor: '#126EED',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 13,
+  },
+
+  smartLifeTitle: {
+    color: '#FFFFFF',
+    fontSize: 21,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+
+  smartLifeText: {
+    color: '#D1D5DB',
+    fontSize: 13,
+    lineHeight: 20,
+    textAlign: 'center',
+    marginTop: 9,
+  },
+
+  smartLifeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 9,
+    marginTop: 18,
+  },
+
+  miniFeature: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    borderRadius: 15,
+  },
+
+  miniFeatureText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+
   /* MISSION */
 
   missionCard: {
@@ -749,4 +1150,5 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 9,
   },
+
 });

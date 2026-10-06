@@ -15,10 +15,9 @@ import {
 
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import * as Notifications from 'expo-notifications';
 
 import { useTasks } from '../context/TaskContext';
-import { scheduleTaskReminder } from '../utils/notifications';
+import * as Notifications from 'expo-notifications';
 
 type FilterType = 'all' | 'active' | 'off' | 'completed';
 
@@ -26,36 +25,52 @@ export default function SmartReminders() {
   const router = useRouter();
   const { width } = useWindowDimensions();
 
-  const {
-    tasks,
-    updateTask,
-  } = useTasks();
+  const { tasks, updateTask } = useTasks();
 
   const [filter, setFilter] = useState<FilterType>('all');
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const isWeb = Platform.OS === 'web';
   const isTablet = width >= 700;
+  const isWeb = Platform.OS === 'web';
 
-  // ---------------------------------------------------------
-  // DATE HELPERS
-  // ---------------------------------------------------------
+  // =========================================================
+  // SAFE BACK
+  // =========================================================
 
-  const getTaskDateTime = (task: any) => {
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/about' as any);
+    }
+  };
+
+  // =========================================================
+  // DATE / TIME HELPERS
+  // =========================================================
+
+  const getTaskDateTime = (task: any): Date | null => {
     try {
-      const date = String(task?.date || '');
-      const time = String(task?.time || '');
+      const date = String(task?.date || '').trim();
+      const time = String(task?.time || '').trim();
 
-      if (!date) return null;
-
-      if (!time) {
-        const d = new Date(`${date}T00:00:00`);
-        return isNaN(d.getTime()) ? null : d;
+      if (!date) {
+        return null;
       }
 
-      let cleanTime = time.trim();
+      // No time
+      if (!time) {
+        const result = new Date(`${date}T00:00:00`);
 
-      const ampmMatch = cleanTime.match(
+        if (isNaN(result.getTime())) {
+          return null;
+        }
+
+        return result;
+      }
+
+      // 12-hour format
+      const ampmMatch = time.match(
         /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i
       );
 
@@ -79,45 +94,26 @@ export default function SmartReminders() {
         }
 
         result.setHours(hour, minute, 0, 0);
+
         return result;
       }
 
-      const result = new Date(`${date}T${cleanTime}`);
+      // 24-hour format
+      const result = new Date(`${date}T${time}`);
 
       if (isNaN(result.getTime())) {
         return null;
       }
 
       return result;
-    } catch {
+    } catch (error) {
+      console.log('Date parsing error:', error);
       return null;
     }
   };
 
-  const isToday = (task: any) => {
-    const taskDate = getTaskDateTime(task);
-
-    if (!taskDate) return false;
-
-    const today = new Date();
-
-    return (
-      taskDate.getFullYear() === today.getFullYear() &&
-      taskDate.getMonth() === today.getMonth() &&
-      taskDate.getDate() === today.getDate()
-    );
-  };
-
-  const isUpcoming = (task: any) => {
-    const taskDate = getTaskDateTime(task);
-
-    if (!taskDate) return false;
-
-    return taskDate.getTime() >= Date.now();
-  };
-
   const formatDate = (task: any) => {
-    const date = String(task?.date || '');
+    const date = String(task?.date || '').trim();
 
     if (!date) {
       return 'No date';
@@ -136,14 +132,392 @@ export default function SmartReminders() {
     });
   };
 
-  // ---------------------------------------------------------
+  const isToday = (task: any) => {
+    const taskDate = getTaskDateTime(task);
+
+    if (!taskDate) {
+      return false;
+    }
+
+    const today = new Date();
+
+    return (
+      taskDate.getFullYear() === today.getFullYear() &&
+      taskDate.getMonth() === today.getMonth() &&
+      taskDate.getDate() === today.getDate()
+    );
+  };
+
+  // =========================================================
+  // REQUEST NOTIFICATION PERMISSION
+  // =========================================================
+
+  const requestNotificationPermission = async () => {
+    if (isWeb) {
+      return true;
+    }
+
+    try {
+      const existing =
+        await Notifications.getPermissionsAsync();
+
+      let finalStatus = existing.status;
+
+      if (finalStatus !== 'granted') {
+        const requested =
+          await Notifications.requestPermissionsAsync();
+
+        finalStatus = requested.status;
+      }
+
+      return finalStatus === 'granted';
+    } catch (error) {
+      console.log(
+        'Notification permission error:',
+        error
+      );
+
+      return false;
+    }
+  };
+
+  // =========================================================
+  // CANCEL OLD NOTIFICATION
+  // =========================================================
+
+  const cancelTaskNotification = async (task: any) => {
+    const taskId = String(task?.id || '');
+
+    /*
+      First try stored notification ID.
+    */
+
+    if (task?.reminderNotificationId) {
+      try {
+        await Notifications.cancelScheduledNotificationAsync(
+          String(task.reminderNotificationId)
+        );
+      } catch (error) {
+        console.log(
+          'Stored notification cancellation:',
+          error
+        );
+      }
+    }
+
+    /*
+      Also search scheduled notifications.
+
+      This helps when an older version of the app created
+      a reminder but did not correctly save its notification ID.
+    */
+
+    try {
+      const scheduled =
+        await Notifications.getAllScheduledNotificationsAsync();
+
+      for (const notification of scheduled) {
+        const notificationData =
+          notification.content?.data || {};
+
+        const notificationTaskId =
+          String(notificationData?.taskId || '');
+
+        const notificationTitle =
+          String(notification.content?.title || '');
+
+        const notificationBody =
+          String(notification.content?.body || '');
+
+        const currentTaskTitle =
+          String(task?.title || '');
+
+        const matchesTaskId =
+          notificationTaskId !== '' &&
+          notificationTaskId === taskId;
+
+        const matchesTitle =
+          currentTaskTitle !== '' &&
+          (
+            notificationTitle === currentTaskTitle ||
+            notificationBody.includes(currentTaskTitle)
+          );
+
+        if (matchesTaskId || matchesTitle) {
+          try {
+            await Notifications.cancelScheduledNotificationAsync(
+              notification.identifier
+            );
+          } catch (error) {
+            console.log(
+              'Scheduled notification cancel error:',
+              error
+            );
+          }
+        }
+      }
+    } catch (error) {
+      console.log(
+        'Get scheduled notifications error:',
+        error
+      );
+    }
+  };
+
+  // =========================================================
+  // SCHEDULE NOTIFICATION
+  // =========================================================
+
+  const scheduleTaskNotification = async (
+    task: any
+  ): Promise<string | null> => {
+    if (isWeb) {
+      /*
+        Expo notification scheduling is not reliable
+        as a native notification service on web.
+
+        We still allow the reminder switch to work and
+        persist the reminder state.
+      */
+      return null;
+    }
+
+    const reminderDate = getTaskDateTime(task);
+
+    if (!reminderDate) {
+      throw new Error(
+        'Invalid task date or time.'
+      );
+    }
+
+    if (reminderDate.getTime() <= Date.now()) {
+      throw new Error(
+        'Reminder time must be in the future.'
+      );
+    }
+
+    const hasPermission =
+      await requestNotificationPermission();
+
+    if (!hasPermission) {
+      throw new Error(
+        'Notification permission was not granted.'
+      );
+    }
+
+    /*
+      Create a unique notification.
+
+      taskId is stored inside data so we can identify
+      this notification later when OFF is pressed.
+    */
+
+    const notificationId =
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: '🔔 Smart Todo Reminder',
+          body:
+            String(task.title || 'You have a task to complete.'),
+          sound: 'default',
+          data: {
+            taskId: String(task.id),
+            taskTitle: String(task.title || ''),
+          },
+        },
+
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: reminderDate,
+        },
+      });
+
+    return notificationId;
+  };
+
+  // =========================================================
+  // ENABLE REMINDER
+  // =========================================================
+
+  const enableReminder = async (task: any) => {
+    const taskId = String(task.id);
+
+    if (busyId) {
+      return;
+    }
+
+    try {
+      setBusyId(taskId);
+
+      const reminderDate =
+        getTaskDateTime(task);
+
+      if (!reminderDate) {
+        Alert.alert(
+          'Missing Date & Time',
+          'Please add a valid date and time before enabling the reminder.'
+        );
+
+        return;
+      }
+
+      if (
+        reminderDate.getTime() <= Date.now()
+      ) {
+        Alert.alert(
+          'Invalid Reminder Time',
+          'Please choose a future date and time for this reminder.'
+        );
+
+        return;
+      }
+
+      /*
+        Before creating a new reminder,
+        remove any previous reminder for this task.
+
+        This prevents duplicate notifications when
+        OFF → ON is used multiple times.
+      */
+
+      await cancelTaskNotification(task);
+
+      /*
+        Schedule fresh notification.
+      */
+
+      const notificationId =
+        await scheduleTaskNotification(task);
+
+      /*
+        Save the complete reminder state.
+      */
+
+      await updateTask(taskId, {
+        reminderEnabled: true,
+
+        reminderNotificationId:
+          notificationId,
+
+        reminderTime:
+          reminderDate.toISOString(),
+      } as any);
+
+      if (isWeb) {
+        Alert.alert(
+          'Reminder Enabled',
+          `"${task.title}" reminder is enabled.\n\nWeb preview saves the reminder state, while actual scheduled notifications require the Expo Go/native app.`
+        );
+      } else {
+        Alert.alert(
+          'Reminder Enabled 🔔',
+          `"${task.title}" will remind you on ${formatDate(
+            task
+          )} at ${String(task.time || '')}.`
+        );
+      }
+    } catch (error: any) {
+      console.log(
+        'Enable reminder error:',
+        error
+      );
+
+      Alert.alert(
+        'Reminder Error',
+        error?.message ||
+          'Unable to schedule this reminder. Please check notification permission.'
+      );
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  // =========================================================
+  // DISABLE REMINDER
+  // =========================================================
+
+  const disableReminder = async (task: any) => {
+    const taskId = String(task.id);
+
+    if (busyId) {
+      return;
+    }
+
+    try {
+      setBusyId(taskId);
+
+      /*
+        Cancel the actual notification first.
+      */
+
+      if (!isWeb) {
+        await cancelTaskNotification(task);
+      }
+
+      /*
+        Clear every reminder field.
+
+        This is important because when the user
+        switches ON again, a completely fresh
+        notification will be created.
+      */
+
+      await updateTask(taskId, {
+        reminderEnabled: false,
+        reminderNotificationId: null,
+        reminderTime: null,
+      } as any);
+
+      /*
+        Small confirmation.
+      */
+
+      Alert.alert(
+        'Reminder Off',
+        `"${task.title}" reminder has been turned off.`
+      );
+    } catch (error) {
+      console.log(
+        'Disable reminder error:',
+        error
+      );
+
+      Alert.alert(
+        'Error',
+        'Unable to disable this reminder.'
+      );
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  // =========================================================
+  // TOGGLE
+  // =========================================================
+
+  const handleToggleReminder = async (
+    task: any
+  ) => {
+    if (busyId) {
+      return;
+    }
+
+    if (task.reminderEnabled === true) {
+      await disableReminder(task);
+    } else {
+      await enableReminder(task);
+    }
+  };
+
+  // =========================================================
   // FILTERED TASKS
-  // ---------------------------------------------------------
+  // =========================================================
 
   const filteredTasks = useMemo(() => {
-    const safeTasks = Array.isArray(tasks) ? tasks : [];
+    const safeTasks = Array.isArray(tasks)
+      ? [...tasks]
+      : [];
 
-    let result = [...safeTasks];
+    let result = safeTasks;
 
     if (filter === 'active') {
       result = result.filter(
@@ -163,13 +537,17 @@ export default function SmartReminders() {
 
     if (filter === 'completed') {
       result = result.filter(
-        (task: any) => task.completed === true
+        (task: any) =>
+          task.completed === true
       );
     }
 
     result.sort((a: any, b: any) => {
-      const aDate = getTaskDateTime(a)?.getTime() || 0;
-      const bDate = getTaskDateTime(b)?.getTime() || 0;
+      const aDate =
+        getTaskDateTime(a)?.getTime() || 0;
+
+      const bDate =
+        getTaskDateTime(b)?.getTime() || 0;
 
       return aDate - bDate;
     });
@@ -177,152 +555,43 @@ export default function SmartReminders() {
     return result;
   }, [tasks, filter]);
 
-  // ---------------------------------------------------------
+  // =========================================================
   // STATISTICS
-  // ---------------------------------------------------------
+  // =========================================================
 
   const activeReminders = useMemo(() => {
-    return tasks.filter(
-      (task: any) =>
-        task.reminderEnabled === true &&
-        task.completed !== true
-    ).length;
+    return Array.isArray(tasks)
+      ? tasks.filter(
+          (task: any) =>
+            task.reminderEnabled === true &&
+            task.completed !== true
+        ).length
+      : 0;
   }, [tasks]);
 
   const todayReminders = useMemo(() => {
-    return tasks.filter(
-      (task: any) =>
-        task.reminderEnabled === true &&
-        task.completed !== true &&
-        isToday(task)
-    ).length;
+    return Array.isArray(tasks)
+      ? tasks.filter(
+          (task: any) =>
+            task.reminderEnabled === true &&
+            task.completed !== true &&
+            isToday(task)
+        ).length
+      : 0;
   }, [tasks]);
 
   const completedReminders = useMemo(() => {
-    return tasks.filter(
-      (task: any) =>
-        task.completed === true
-    ).length;
+    return Array.isArray(tasks)
+      ? tasks.filter(
+          (task: any) =>
+            task.completed === true
+        ).length
+      : 0;
   }, [tasks]);
 
-  // ---------------------------------------------------------
-  // ENABLE REMINDER
-  // ---------------------------------------------------------
-
-  const enableReminder = async (task: any) => {
-    const taskId = String(task.id);
-
-    try {
-      setBusyId(taskId);
-
-      const reminderDate = getTaskDateTime(task);
-
-      if (!reminderDate) {
-        Alert.alert(
-          'Missing Date & Time',
-          'Please add a valid date and time before enabling the reminder.'
-        );
-        return;
-      }
-
-      if (reminderDate.getTime() <= Date.now()) {
-        Alert.alert(
-          'Invalid Reminder Time',
-          'Please choose a future date and time for this reminder.'
-        );
-        return;
-      }
-
-      // Schedule notification using existing project utility
-      const notificationId = await scheduleTaskReminder(
-        String(task.title || 'Smart Todo Reminder'),
-        String(task.date || ''),
-        String(task.time || '')
-      );
-
-      await updateTask(taskId, {
-        reminderEnabled: true,
-        reminderNotificationId:
-          notificationId || null,
-        reminderTime: reminderDate.toISOString(),
-      } as any);
-
-      Alert.alert(
-        'Reminder Enabled 🔔',
-        `"${task.title}" is now scheduled for ${formatDate(task)} ${
-          task.time ? `at ${task.time}` : ''
-        }.`
-      );
-    } catch (error) {
-      console.log('Enable reminder error:', error);
-
-      Alert.alert(
-        'Reminder Error',
-        'Unable to schedule this reminder. Please check notification permission and try again.'
-      );
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  // ---------------------------------------------------------
-  // DISABLE REMINDER
-  // ---------------------------------------------------------
-
-  const disableReminder = async (task: any) => {
-    const taskId = String(task.id);
-
-    try {
-      setBusyId(taskId);
-
-      // Cancel existing scheduled notification
-      if (task.reminderNotificationId) {
-        try {
-          await Notifications.cancelScheduledNotificationAsync(
-            String(task.reminderNotificationId)
-          );
-        } catch (notificationError) {
-          console.log(
-            'Notification cancellation error:',
-            notificationError
-          );
-        }
-      }
-
-      await updateTask(taskId, {
-        reminderEnabled: false,
-        reminderNotificationId: null,
-        reminderTime: null,
-      } as any);
-    } catch (error) {
-      console.log('Disable reminder error:', error);
-
-      Alert.alert(
-        'Error',
-        'Unable to disable this reminder.'
-      );
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  // ---------------------------------------------------------
-  // TOGGLE REMINDER
-  // ---------------------------------------------------------
-
-  const handleToggleReminder = async (task: any) => {
-    if (busyId) return;
-
-    if (task.reminderEnabled) {
-      await disableReminder(task);
-    } else {
-      await enableReminder(task);
-    }
-  };
-
-  // ---------------------------------------------------------
-  // DELETE / EDIT
-  // ---------------------------------------------------------
+  // =========================================================
+  // ROUTING
+  // =========================================================
 
   const openTaskDetails = (task: any) => {
     router.push({
@@ -337,12 +606,16 @@ export default function SmartReminders() {
     router.push('/add-task' as any);
   };
 
-  // ---------------------------------------------------------
+  // =========================================================
   // CATEGORY ICON
-  // ---------------------------------------------------------
+  // =========================================================
 
-  const getCategoryIcon = (category: string) => {
-    switch (String(category || '').toLowerCase()) {
+  const getCategoryIcon = (
+    category: string
+  ) => {
+    switch (
+      String(category || '').toLowerCase()
+    ) {
       case 'work':
         return 'briefcase-outline';
 
@@ -363,13 +636,18 @@ export default function SmartReminders() {
     }
   };
 
-  // ---------------------------------------------------------
-  // REMINDER CARD
-  // ---------------------------------------------------------
+  // =========================================================
+  // TASK CARD
+  // =========================================================
 
   const renderTask = (task: any) => {
     const taskId = String(task.id);
-    const isBusy = busyId === taskId;
+
+    const isBusy =
+      busyId === taskId;
+
+    const reminderOn =
+      task.reminderEnabled === true;
 
     return (
       <View
@@ -380,48 +658,67 @@ export default function SmartReminders() {
         ]}
       >
         <View style={styles.taskTopRow}>
+          {/* ICON */}
+
           <View style={styles.taskIcon}>
             <Ionicons
               name={
-                task.reminderEnabled
+                reminderOn
                   ? 'notifications'
                   : 'notifications-off-outline'
               }
               size={23}
               color={
-                task.reminderEnabled
+                reminderOn
                   ? '#126EED'
                   : '#8A8F98'
               }
             />
           </View>
 
+          {/* TASK */}
+
           <View style={styles.taskMain}>
             <Text
               style={[
                 styles.taskTitle,
-                task.completed && styles.completedTitle,
+                task.completed &&
+                  styles.completedTitle,
               ]}
               numberOfLines={2}
             >
-              {String(task.title || 'Untitled Task')}
+              {String(
+                task.title ||
+                  'Untitled Task'
+              )}
             </Text>
 
             <View style={styles.categoryRow}>
               <Ionicons
-                name={getCategoryIcon(task.category) as any}
+                name={
+                  getCategoryIcon(
+                    task.category
+                  ) as any
+                }
                 size={14}
                 color="#777E89"
               />
 
-              <Text style={styles.categoryText}>
-                {String(task.category || 'Personal')}
+              <Text
+                style={styles.categoryText}
+              >
+                {String(
+                  task.category ||
+                    'Personal'
+                )}
               </Text>
             </View>
           </View>
 
+          {/* SWITCH */}
+
           <Switch
-            value={task.reminderEnabled === true}
+            value={reminderOn}
             onValueChange={() =>
               handleToggleReminder(task)
             }
@@ -431,7 +728,7 @@ export default function SmartReminders() {
               true: '#A9CBFF',
             }}
             thumbColor={
-              task.reminderEnabled
+              reminderOn
                 ? '#126EED'
                 : '#F4F5F6'
             }
@@ -439,6 +736,8 @@ export default function SmartReminders() {
         </View>
 
         <View style={styles.divider} />
+
+        {/* DATE / TIME */}
 
         <View style={styles.detailsRow}>
           <View style={styles.detailItem}>
@@ -448,7 +747,9 @@ export default function SmartReminders() {
               color="#126EED"
             />
 
-            <Text style={styles.detailText}>
+            <Text
+              style={styles.detailText}
+            >
               {formatDate(task)}
             </Text>
           </View>
@@ -460,30 +761,36 @@ export default function SmartReminders() {
               color="#126EED"
             />
 
-            <Text style={styles.detailText}>
-              {String(task.time || 'No time')}
+            <Text
+              style={styles.detailText}
+            >
+              {String(
+                task.time || 'No time'
+              )}
             </Text>
           </View>
         </View>
+
+        {/* STATUS / EDIT */}
 
         <View style={styles.actionRow}>
           <View
             style={[
               styles.statusBadge,
-              task.reminderEnabled
+              reminderOn
                 ? styles.activeBadge
                 : styles.offBadge,
             ]}
           >
             <Ionicons
               name={
-                task.reminderEnabled
+                reminderOn
                   ? 'checkmark-circle'
                   : 'pause-circle-outline'
               }
               size={14}
               color={
-                task.reminderEnabled
+                reminderOn
                   ? '#087443'
                   : '#737982'
               }
@@ -492,12 +799,12 @@ export default function SmartReminders() {
             <Text
               style={[
                 styles.statusText,
-                task.reminderEnabled
+                reminderOn
                   ? styles.activeStatusText
                   : styles.offStatusText,
               ]}
             >
-              {task.reminderEnabled
+              {reminderOn
                 ? 'Reminder Active'
                 : 'Reminder Off'}
             </Text>
@@ -506,7 +813,10 @@ export default function SmartReminders() {
           <TouchableOpacity
             style={styles.editButton}
             activeOpacity={0.8}
-            onPress={() => openTaskDetails(task)}
+            onPress={() =>
+              openTaskDetails(task)
+            }
+            disabled={isBusy}
           >
             <Ionicons
               name="create-outline"
@@ -514,22 +824,32 @@ export default function SmartReminders() {
               color="#126EED"
             />
 
-            <Text style={styles.editButtonText}>
+            <Text
+              style={styles.editButtonText}
+            >
               Edit
             </Text>
           </TouchableOpacity>
         </View>
 
+        {/* PROCESSING */}
+
         {isBusy && (
-          <View style={styles.processingRow}>
+          <View
+            style={styles.processingRow}
+          >
             <Ionicons
               name="sync-outline"
               size={14}
               color="#126EED"
             />
 
-            <Text style={styles.processingText}>
-              Updating reminder...
+            <Text
+              style={styles.processingText}
+            >
+              {reminderOn
+                ? 'Turning reminder off...'
+                : 'Turning reminder on...'}
             </Text>
           </View>
         )}
@@ -537,29 +857,37 @@ export default function SmartReminders() {
     );
   };
 
-  // ---------------------------------------------------------
+  // =========================================================
   // EMPTY STATE
-  // ---------------------------------------------------------
+  // =========================================================
 
   const renderEmpty = () => {
-    let title = 'No reminders found';
+    let title =
+      'No reminders found';
+
     let message =
       'Create a task and turn on its reminder to stay on track.';
 
     if (filter === 'active') {
-      title = 'No active reminders';
+      title =
+        'No active reminders';
+
       message =
         'Turn on reminders for your upcoming tasks.';
     }
 
     if (filter === 'off') {
-      title = 'All tasks have reminders';
+      title =
+        'No reminder-off tasks';
+
       message =
-        'Great! Your tasks are already configured with reminders.';
+        'All your pending tasks currently have reminders enabled.';
     }
 
     if (filter === 'completed') {
-      title = 'No completed tasks';
+      title =
+        'No completed tasks';
+
       message =
         'Complete tasks to see them here.';
     }
@@ -574,11 +902,15 @@ export default function SmartReminders() {
           />
         </View>
 
-        <Text style={styles.emptyTitle}>
+        <Text
+          style={styles.emptyTitle}
+        >
           {title}
         </Text>
 
-        <Text style={styles.emptyMessage}>
+        <Text
+          style={styles.emptyMessage}
+        >
           {message}
         </Text>
 
@@ -593,7 +925,9 @@ export default function SmartReminders() {
             color="#FFFFFF"
           />
 
-          <Text style={styles.emptyButtonText}>
+          <Text
+            style={styles.emptyButtonText}
+          >
             Create Reminder
           </Text>
         </TouchableOpacity>
@@ -601,25 +935,29 @@ export default function SmartReminders() {
     );
   };
 
-  // ---------------------------------------------------------
+  // =========================================================
   // UI
-  // ---------------------------------------------------------
+  // =========================================================
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={
+          false
+        }
         contentContainerStyle={[
           styles.scrollContent,
-          isTablet && styles.scrollContentTablet,
+          isTablet &&
+            styles.scrollContentTablet,
         ]}
       >
         {/* HEADER */}
+
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
             activeOpacity={0.8}
-            onPress={() => router.back()}
+            onPress={handleBack}
           >
             <Ionicons
               name="arrow-back"
@@ -628,12 +966,18 @@ export default function SmartReminders() {
             />
           </TouchableOpacity>
 
-          <View style={styles.headerTextContainer}>
-            <Text style={styles.headerTitle}>
+          <View
+            style={styles.headerTextContainer}
+          >
+            <Text
+              style={styles.headerTitle}
+            >
               Smart Reminders
             </Text>
 
-            <Text style={styles.headerSubtitle}>
+            <Text
+              style={styles.headerSubtitle}
+            >
               Never miss what matters
             </Text>
           </View>
@@ -652,6 +996,7 @@ export default function SmartReminders() {
         </View>
 
         {/* HERO */}
+
         <View style={styles.heroCard}>
           <View style={styles.heroIcon}>
             <Ionicons
@@ -661,23 +1006,32 @@ export default function SmartReminders() {
             />
           </View>
 
-          <View style={styles.heroContent}>
-            <Text style={styles.heroTitle}>
+          <View
+            style={styles.heroContent}
+          >
+            <Text
+              style={styles.heroTitle}
+            >
               Stay one step ahead
             </Text>
 
-            <Text style={styles.heroText}>
-              Set reminders for important tasks and get
-              notified at the right time.
+            <Text
+              style={styles.heroText}
+            >
+              Set reminders for important
+              tasks and get notified at
+              the right time.
             </Text>
           </View>
         </View>
 
         {/* STATS */}
+
         <View
           style={[
             styles.statsGrid,
-            isTablet && styles.statsGridTablet,
+            isTablet &&
+              styles.statsGridTablet,
           ]}
         >
           <View style={styles.statCard}>
@@ -694,11 +1048,15 @@ export default function SmartReminders() {
               />
             </View>
 
-            <Text style={styles.statNumber}>
+            <Text
+              style={styles.statNumber}
+            >
               {activeReminders}
             </Text>
 
-            <Text style={styles.statLabel}>
+            <Text
+              style={styles.statLabel}
+            >
               Active
             </Text>
           </View>
@@ -717,11 +1075,15 @@ export default function SmartReminders() {
               />
             </View>
 
-            <Text style={styles.statNumber}>
+            <Text
+              style={styles.statNumber}
+            >
               {todayReminders}
             </Text>
 
-            <Text style={styles.statLabel}>
+            <Text
+              style={styles.statLabel}
+            >
               Today
             </Text>
           </View>
@@ -740,71 +1102,101 @@ export default function SmartReminders() {
               />
             </View>
 
-            <Text style={styles.statNumber}>
+            <Text
+              style={styles.statNumber}
+            >
               {completedReminders}
             </Text>
 
-            <Text style={styles.statLabel}>
+            <Text
+              style={styles.statLabel}
+            >
               Completed
             </Text>
           </View>
         </View>
 
-        {/* FILTERS */}
-        <View style={styles.sectionHeader}>
-          <View>
-            <Text style={styles.sectionTitle}>
-              Your Reminders
-            </Text>
+        {/* SECTION */}
 
-            <Text style={styles.sectionSubtitle}>
-              Manage notification alerts for your tasks
-            </Text>
-          </View>
+        <View
+          style={styles.sectionHeader}
+        >
+          <Text
+            style={styles.sectionTitle}
+          >
+            Your Reminders
+          </Text>
+
+          <Text
+            style={styles.sectionSubtitle}
+          >
+            Manage notification alerts
+            for your tasks
+          </Text>
         </View>
+
+        {/* FILTERS */}
 
         <ScrollView
           horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterScroll}
+          showsHorizontalScrollIndicator={
+            false
+          }
+          contentContainerStyle={
+            styles.filterScroll
+          }
         >
           <FilterButton
             label="All"
             icon="apps-outline"
             active={filter === 'all'}
-            onPress={() => setFilter('all')}
+            onPress={() =>
+              setFilter('all')
+            }
           />
 
           <FilterButton
             label="Active"
             icon="notifications-outline"
             active={filter === 'active'}
-            onPress={() => setFilter('active')}
+            onPress={() =>
+              setFilter('active')
+            }
           />
 
           <FilterButton
             label="Reminder Off"
             icon="notifications-off-outline"
             active={filter === 'off'}
-            onPress={() => setFilter('off')}
+            onPress={() =>
+              setFilter('off')
+            }
           />
 
           <FilterButton
             label="Completed"
             icon="checkmark-circle-outline"
-            active={filter === 'completed'}
-            onPress={() => setFilter('completed')}
+            active={
+              filter === 'completed'
+            }
+            onPress={() =>
+              setFilter('completed')
+            }
           />
         </ScrollView>
 
         {/* TASK LIST */}
+
         <View style={styles.taskList}>
           {filteredTasks.length === 0
             ? renderEmpty()
-            : filteredTasks.map(renderTask)}
+            : filteredTasks.map(
+                renderTask
+              )}
         </View>
 
-        {/* QUICK TIP */}
+        {/* TIP */}
+
         <View style={styles.tipCard}>
           <View style={styles.tipIcon}>
             <Ionicons
@@ -814,20 +1206,29 @@ export default function SmartReminders() {
             />
           </View>
 
-          <View style={styles.tipContent}>
-            <Text style={styles.tipTitle}>
+          <View
+            style={styles.tipContent}
+          >
+            <Text
+              style={styles.tipTitle}
+            >
               Smart productivity tip
             </Text>
 
-            <Text style={styles.tipText}>
-              Add reminders to important tasks and
-              complete them before their scheduled time.
-              Small reminders can make a big difference.
+            <Text
+              style={styles.tipText}
+            >
+              Add reminders to important
+              tasks and complete them before
+              their scheduled time. Small
+              reminders can make a big
+              difference.
             </Text>
           </View>
         </View>
 
-        {/* CREATE BUTTON */}
+        {/* CREATE */}
+
         <TouchableOpacity
           style={styles.createButton}
           activeOpacity={0.88}
@@ -839,12 +1240,16 @@ export default function SmartReminders() {
             color="#FFFFFF"
           />
 
-          <Text style={styles.createButtonText}>
+          <Text
+            style={styles.createButtonText}
+          >
             Create New Reminder
           </Text>
         </TouchableOpacity>
 
-        <View style={styles.bottomSpace} />
+        <View
+          style={styles.bottomSpace}
+        />
       </ScrollView>
     </SafeAreaView>
   );
@@ -869,7 +1274,8 @@ function FilterButton({
     <TouchableOpacity
       style={[
         styles.filterButton,
-        active && styles.filterButtonActive,
+        active &&
+          styles.filterButtonActive,
       ]}
       activeOpacity={0.8}
       onPress={onPress}
@@ -877,13 +1283,18 @@ function FilterButton({
       <Ionicons
         name={icon}
         size={16}
-        color={active ? '#FFFFFF' : '#626A75'}
+        color={
+          active
+            ? '#FFFFFF'
+            : '#626A75'
+        }
       />
 
       <Text
         style={[
           styles.filterButtonText,
-          active && styles.filterButtonTextActive,
+          active &&
+            styles.filterButtonTextActive,
         ]}
       >
         {label}
@@ -916,6 +1327,7 @@ const styles = StyleSheet.create({
   },
 
   // HEADER
+
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -961,6 +1373,7 @@ const styles = StyleSheet.create({
   },
 
   // HERO
+
   heroCard: {
     backgroundColor: '#EAF3FF',
     borderRadius: 22,
@@ -1000,6 +1413,7 @@ const styles = StyleSheet.create({
   },
 
   // STATS
+
   statsGrid: {
     flexDirection: 'row',
     gap: 10,
@@ -1054,6 +1468,7 @@ const styles = StyleSheet.create({
   },
 
   // SECTION
+
   sectionHeader: {
     marginBottom: 12,
   },
@@ -1071,6 +1486,7 @@ const styles = StyleSheet.create({
   },
 
   // FILTERS
+
   filterScroll: {
     gap: 8,
     paddingBottom: 15,
@@ -1104,6 +1520,7 @@ const styles = StyleSheet.create({
   },
 
   // TASK LIST
+
   taskList: {
     gap: 13,
   },
@@ -1255,6 +1672,7 @@ const styles = StyleSheet.create({
   },
 
   // EMPTY
+
   emptyCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 22,
@@ -1308,6 +1726,7 @@ const styles = StyleSheet.create({
   },
 
   // TIP
+
   tipCard: {
     marginTop: 18,
     backgroundColor: '#FFF9E8',
@@ -1346,6 +1765,7 @@ const styles = StyleSheet.create({
   },
 
   // CREATE
+
   createButton: {
     marginTop: 18,
     height: 52,

@@ -1,4 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import {
   Alert,
@@ -31,13 +36,20 @@ export default function WellnessScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
 
-  const [data, setData] = useState<WellnessData | null>(null);
-  const [stepSubscription, setStepSubscription] =
-    useState<any>(null);
+  const [data, setData] =
+    useState<WellnessData | null>(null);
 
-  const [manualSteps, setManualSteps] = useState('');
+  const [manualSteps, setManualSteps] =
+    useState('');
+
+  const stepSubscription =
+    useRef<Pedometer.Subscription | null>(null);
 
   const isDesktop = width >= 900;
+
+  /* -------------------------------------------------------
+     LOAD WELLNESS DATA
+  ------------------------------------------------------- */
 
   useEffect(() => {
     loadData();
@@ -45,69 +57,222 @@ export default function WellnessScreen() {
     startPedometer();
 
     return () => {
-      if (stepSubscription) {
-        stepSubscription.remove();
+      if (stepSubscription.current) {
+        stepSubscription.current.remove();
+        stepSubscription.current = null;
       }
     };
   }, []);
 
+  /* -------------------------------------------------------
+     LOAD DATA
+  ------------------------------------------------------- */
+
   const loadData = async () => {
-    const saved = await getWellness();
-    setData(saved);
+    try {
+      const saved = await getWellness();
+
+      setData(saved);
+    } catch (error) {
+      console.log(
+        'Load wellness error:',
+        error
+      );
+    }
   };
+
+  /* -------------------------------------------------------
+     GET TODAY'S REAL STEPS
+  ------------------------------------------------------- */
+
+  const getTodaySteps = async () => {
+    try {
+      if (Platform.OS === 'web') {
+        return null;
+      }
+
+      const available =
+        await Pedometer.isAvailableAsync();
+
+      if (!available) {
+        console.log(
+          'Pedometer is not available on this device.'
+        );
+
+        return null;
+      }
+
+      const startOfDay = new Date();
+
+      startOfDay.setHours(
+        0,
+        0,
+        0,
+        0
+      );
+
+      const now = new Date();
+
+      const result =
+        await Pedometer.getStepCountAsync(
+          startOfDay,
+          now
+        );
+
+      return result.steps;
+    } catch (error) {
+      console.log(
+        'Get today steps error:',
+        error
+      );
+
+      return null;
+    }
+  };
+
+  /* -------------------------------------------------------
+     SAVE REAL STEPS
+  ------------------------------------------------------- */
+
+  const saveTodaySteps = async (
+    todaySteps: number
+  ) => {
+    try {
+      const steps = Math.max(
+        0,
+        Math.floor(todaySteps)
+      );
+
+      setData((previous) => {
+        if (!previous) {
+          return previous;
+        }
+
+        const updated: WellnessData = {
+          ...previous,
+          date: getTodayKey(),
+          steps,
+          calories: Math.round(
+            steps * CALORIES_PER_STEP
+          ),
+        };
+
+        saveWellness(updated);
+
+        return updated;
+      });
+    } catch (error) {
+      console.log(
+        'Save today steps error:',
+        error
+      );
+    }
+  };
+
+  /* -------------------------------------------------------
+     START PEDOMETER
+  ------------------------------------------------------- */
 
   const startPedometer = async () => {
     try {
-      if (Platform.OS === 'web') return;
+      if (Platform.OS === 'web') {
+        return;
+      }
 
-      const available = await Pedometer.isAvailableAsync();
+      const available =
+        await Pedometer.isAvailableAsync();
 
-      if (!available) return;
+      if (!available) {
+        console.log(
+          'Pedometer is not available.'
+        );
 
-      const subscription = Pedometer.watchStepCount(
-        async (result) => {
-          setData((previous) => {
-            if (!previous) return previous;
+        return;
+      }
 
-            const steps = Math.max(
-              previous.steps,
-              result.steps
-            );
+      /*
+       * STEP 1
+       * Get the REAL total steps from
+       * midnight until now.
+       */
 
-            const updated = {
-              ...previous,
-              steps,
-              calories: Math.round(
-                steps * CALORIES_PER_STEP
-              ),
-            };
+      const initialSteps =
+        await getTodaySteps();
 
-            saveWellness(updated);
+      if (initialSteps !== null) {
+        await saveTodaySteps(
+          initialSteps
+        );
+      }
 
-            return updated;
-          });
-        }
+      /*
+       * STEP 2
+       * Start live tracking.
+       */
+
+      const subscription =
+        Pedometer.watchStepCount(
+          async () => {
+            /*
+             * IMPORTANT:
+             *
+             * watchStepCount() gives steps
+             * since the watcher started.
+             *
+             * So we DON'T directly use
+             * result.steps.
+             *
+             * Instead we ask the phone again
+             * for today's total.
+             */
+
+            const currentSteps =
+              await getTodaySteps();
+
+            if (currentSteps !== null) {
+              await saveTodaySteps(
+                currentSteps
+              );
+            }
+          }
+        );
+
+      stepSubscription.current =
+        subscription;
+
+      console.log(
+        'Pedometer live tracking started.'
       );
-
-      setStepSubscription(subscription);
     } catch (error) {
-      console.log('Pedometer unavailable:', error);
+      console.log(
+        'Pedometer unavailable:',
+        error
+      );
     }
   };
+
+  /* -------------------------------------------------------
+     UPDATE DATA
+  ------------------------------------------------------- */
 
   const updateData = async (
     updates: Partial<WellnessData>
   ) => {
     if (!data) return;
 
-    const updated = {
+    const updated: WellnessData = {
       ...data,
       ...updates,
     };
 
     setData(updated);
+
     await saveWellness(updated);
   };
+
+  /* -------------------------------------------------------
+     ADD WATER
+  ------------------------------------------------------- */
 
   const addWater = async () => {
     if (!data) return;
@@ -117,6 +282,7 @@ export default function WellnessScreen() {
         'Hydration Goal',
         'You already reached your water goal today! 💧'
       );
+
       return;
     }
 
@@ -125,33 +291,54 @@ export default function WellnessScreen() {
     });
   };
 
+  /* -------------------------------------------------------
+     ADD ACTIVITY
+  ------------------------------------------------------- */
+
   const addActivity = async () => {
     if (!data) return;
 
     await updateData({
-      activeMinutes: data.activeMinutes + 10,
+      activeMinutes:
+        data.activeMinutes + 10,
+
       calories:
         data.calories + 40,
     });
   };
 
+  /* -------------------------------------------------------
+     MANUAL STEPS
+  ------------------------------------------------------- */
+
   const saveManualSteps = async () => {
     if (!data) return;
 
-    const steps = Number(manualSteps);
+    const steps = Number(
+      manualSteps.trim()
+    );
 
-    if (!Number.isFinite(steps) || steps < 0) {
+    if (
+      !Number.isFinite(steps) ||
+      steps < 0
+    ) {
       showMessage(
         'Invalid Steps',
         'Please enter a valid step count.'
       );
+
       return;
     }
 
+    const roundedSteps =
+      Math.floor(steps);
+
     await updateData({
-      steps,
+      steps: roundedSteps,
+
       calories: Math.round(
-        steps * CALORIES_PER_STEP
+        roundedSteps *
+          CALORIES_PER_STEP
       ),
     });
 
@@ -159,20 +346,33 @@ export default function WellnessScreen() {
 
     showMessage(
       'Steps Updated',
-      `${steps.toLocaleString()} steps saved successfully! 🚶`
+      `${roundedSteps.toLocaleString()} steps saved successfully! 🚶`
     );
   };
+
+  /* -------------------------------------------------------
+     SHOW MESSAGE
+  ------------------------------------------------------- */
 
   const showMessage = (
     title: string,
     message: string
   ) => {
     if (Platform.OS === 'web') {
-      window.alert(`${title}\n\n${message}`);
+      window.alert(
+        `${title}\n\n${message}`
+      );
     } else {
-      Alert.alert(title, message);
+      Alert.alert(
+        title,
+        message
+      );
     }
   };
+
+  /* -------------------------------------------------------
+     STEP PROGRESS
+  ------------------------------------------------------- */
 
   const stepProgress = useMemo(() => {
     if (!data) return 0;
@@ -180,55 +380,93 @@ export default function WellnessScreen() {
     return Math.min(
       100,
       Math.round(
-        (data.steps / STEP_GOAL) * 100
+        (data.steps /
+          STEP_GOAL) *
+          100
       )
     );
   }, [data]);
+
+  /* -------------------------------------------------------
+     WATER PROGRESS
+  ------------------------------------------------------- */
 
   const waterProgress = useMemo(() => {
     if (!data) return 0;
 
+    if (data.waterGoal <= 0) {
+      return 0;
+    }
+
     return Math.min(
       100,
       Math.round(
-        (data.water / data.waterGoal) * 100
+        (data.water /
+          data.waterGoal) *
+          100
       )
     );
   }, [data]);
+
+  /* -------------------------------------------------------
+     SLEEP PROGRESS
+  ------------------------------------------------------- */
 
   const sleepProgress = useMemo(() => {
     if (!data) return 0;
 
+    if (data.sleepGoal <= 0) {
+      return 0;
+    }
+
     return Math.min(
       100,
       Math.round(
-        (data.sleepHours / data.sleepGoal) * 100
+        (data.sleepHours /
+          data.sleepGoal) *
+          100
       )
     );
   }, [data]);
 
+  /* -------------------------------------------------------
+     WELLNESS SCORE
+  ------------------------------------------------------- */
+
   const wellnessScore = useMemo(() => {
     if (!data) return 0;
 
-    const stepsScore = Math.min(
-      100,
-      (data.steps / STEP_GOAL) * 100
-    );
+    const stepsScore =
+      Math.min(
+        100,
+        (data.steps /
+          STEP_GOAL) *
+          100
+      );
 
-    const waterScore = Math.min(
-      100,
-      (data.water / data.waterGoal) * 100
-    );
+    const waterScore =
+      Math.min(
+        100,
+        (data.water /
+          data.waterGoal) *
+          100
+      );
 
-    const sleepScore = Math.min(
-      100,
-      (data.sleepHours / data.sleepGoal) * 100
-    );
+    const sleepScore =
+      Math.min(
+        100,
+        (data.sleepHours /
+          data.sleepGoal) *
+          100
+      );
 
-    const activityScore = Math.min(
-      100,
-      (data.activeMinutes / 60) * 100
-    );
+    const activityScore =
+      Math.min(
+        100,
+        (data.activeMinutes /
+          60) *
+          100
+      );
 
     return Math.round(
       stepsScore * 0.35 +
@@ -238,26 +476,44 @@ export default function WellnessScreen() {
     );
   }, [data]);
 
+  /* -------------------------------------------------------
+     LOADING
+  ------------------------------------------------------- */
+
   if (!data) {
     return (
-      <SafeAreaView style={styles.loading}>
-        <Text style={styles.loadingText}>
+      <SafeAreaView
+        style={styles.loading}
+      >
+        <Text
+          style={styles.loadingText}
+        >
           Loading wellness...
         </Text>
       </SafeAreaView>
     );
   }
 
+  /* -------------------------------------------------------
+     UI
+  ------------------------------------------------------- */
+
   return (
-    <SafeAreaView style={styles.screen}>
+    <SafeAreaView
+      style={styles.screen}
+    >
       <ScrollView
         contentContainerStyle={[
           styles.container,
           {
-            maxWidth: isDesktop ? 1200 : undefined,
+            maxWidth: isDesktop
+              ? 1200
+              : undefined,
           },
         ]}
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={
+          false
+        }
       >
         {/* HEADER */}
 
@@ -268,7 +524,9 @@ export default function WellnessScreen() {
               if (router.canGoBack()) {
                 router.back();
               } else {
-                router.replace('/task' as any);
+                router.replace(
+                  '/task' as any
+                );
               }
             }}
           >
@@ -279,26 +537,43 @@ export default function WellnessScreen() {
             />
           </TouchableOpacity>
 
-          <View style={{ flex: 1 }}>
-            <Text style={styles.eyebrow}>
+          <View
+            style={{
+              flex: 1,
+            }}
+          >
+            <Text
+              style={styles.eyebrow}
+            >
               SMART LIFE
             </Text>
 
-            <Text style={styles.title}>
+            <Text
+              style={styles.title}
+            >
               Wellness
             </Text>
 
-            <Text style={styles.subtitle}>
+            <Text
+              style={styles.subtitle}
+            >
               Take care of your body while
               conquering your goals.
             </Text>
           </View>
 
-          <View style={styles.scoreCircle}>
-            <Text style={styles.scoreText}>
+          <View
+            style={styles.scoreCircle}
+          >
+            <Text
+              style={styles.scoreText}
+            >
               {wellnessScore}%
             </Text>
-            <Text style={styles.scoreLabel}>
+
+            <Text
+              style={styles.scoreLabel}
+            >
               Wellness
             </Text>
           </View>
@@ -307,7 +582,9 @@ export default function WellnessScreen() {
         {/* HERO */}
 
         <View style={styles.heroCard}>
-          <View style={styles.heroIcon}>
+          <View
+            style={styles.heroIcon}
+          >
             <Ionicons
               name="heart"
               size={28}
@@ -315,12 +592,20 @@ export default function WellnessScreen() {
             />
           </View>
 
-          <View style={{ flex: 1 }}>
-            <Text style={styles.heroTitle}>
+          <View
+            style={{
+              flex: 1,
+            }}
+          >
+            <Text
+              style={styles.heroTitle}
+            >
               Today's Wellness
             </Text>
 
-            <Text style={styles.heroText}>
+            <Text
+              style={styles.heroText}
+            >
               Small healthy habits create big
               results. Keep going! 💪
             </Text>
@@ -332,7 +617,8 @@ export default function WellnessScreen() {
         <View
           style={[
             styles.statsGrid,
-            isDesktop && styles.desktopGrid,
+            isDesktop &&
+              styles.desktopGrid,
           ]}
         >
           <StatCard
@@ -346,12 +632,16 @@ export default function WellnessScreen() {
           <StatCard
             icon="flame"
             title="Calories"
-            value={`${Math.round(data.calories)} kcal`}
+            value={`${Math.round(
+              data.calories
+            )} kcal`}
             subtitle="Estimated burn"
             progress={Math.min(
               100,
               Math.round(
-                (data.calories / 400) * 100
+                (data.calories /
+                  400) *
+                  100
               )
             )}
           />
@@ -361,7 +651,9 @@ export default function WellnessScreen() {
             title="Water"
             value={`${data.water}/${data.waterGoal}`}
             subtitle="Glasses today"
-            progress={waterProgress}
+            progress={
+              waterProgress
+            }
           />
 
           <StatCard
@@ -369,7 +661,9 @@ export default function WellnessScreen() {
             title="Sleep"
             value={`${data.sleepHours} hrs`}
             subtitle={`Goal ${data.sleepGoal} hrs`}
-            progress={sleepProgress}
+            progress={
+              sleepProgress
+            }
           />
         </View>
 
@@ -382,8 +676,12 @@ export default function WellnessScreen() {
         />
 
         <View style={styles.card}>
-          <View style={styles.bigRow}>
-            <View style={styles.roundIcon}>
+          <View
+            style={styles.bigRow}
+          >
+            <View
+              style={styles.roundIcon}
+            >
               <Ionicons
                 name="walk"
                 size={30}
@@ -391,35 +689,61 @@ export default function WellnessScreen() {
               />
             </View>
 
-            <View style={{ flex: 1 }}>
-              <Text style={styles.bigNumber}>
+            <View
+              style={{
+                flex: 1,
+              }}
+            >
+              <Text
+                style={styles.bigNumber}
+              >
                 {data.steps.toLocaleString()}
               </Text>
 
-              <Text style={styles.muted}>
-                of {STEP_GOAL.toLocaleString()} steps
+              <Text
+                style={styles.muted}
+              >
+                of{' '}
+                {STEP_GOAL.toLocaleString()}{' '}
+                steps
               </Text>
             </View>
 
-            <Text style={styles.percent}>
+            <Text
+              style={styles.percent}
+            >
               {stepProgress}%
             </Text>
           </View>
 
-          <ProgressBar progress={stepProgress} />
+          <ProgressBar
+            progress={
+              stepProgress
+            }
+          />
 
-          <Text style={styles.tip}>
+          <Text
+            style={styles.tip}
+          >
             {stepProgress >= 100
               ? '🎉 Step goal completed!'
-              : `${(
-                  STEP_GOAL - data.steps
+              : `${Math.max(
+                  0,
+                  STEP_GOAL -
+                    data.steps
                 ).toLocaleString()} steps remaining today`}
           </Text>
 
-          <View style={styles.manualRow}>
+          {/* MANUAL STEP ENTRY */}
+
+          <View
+            style={styles.manualRow}
+          >
             <TextInput
               value={manualSteps}
-              onChangeText={setManualSteps}
+              onChangeText={
+                setManualSteps
+              }
               placeholder="Enter steps manually"
               placeholderTextColor="#9CA3AF"
               keyboardType="numeric"
@@ -427,18 +751,28 @@ export default function WellnessScreen() {
             />
 
             <TouchableOpacity
-              style={styles.smallButton}
-              onPress={saveManualSteps}
+              style={
+                styles.smallButton
+              }
+              onPress={
+                saveManualSteps
+              }
             >
-              <Text style={styles.smallButtonText}>
+              <Text
+                style={
+                  styles.smallButtonText
+                }
+              >
                 Save
               </Text>
             </TouchableOpacity>
           </View>
 
           {Platform.OS !== 'web' && (
-            <Text style={styles.sensorText}>
-              📱 Motion sensor tracking is available
+            <Text
+              style={styles.sensorText}
+            >
+              📱 Live step tracking is active
               on supported mobile devices.
             </Text>
           )}
@@ -453,18 +787,27 @@ export default function WellnessScreen() {
         />
 
         <View style={styles.card}>
-          <View style={styles.waterTop}>
+          <View
+            style={styles.waterTop}
+          >
             <View>
-              <Text style={styles.bigNumber}>
+              <Text
+                style={styles.bigNumber}
+              >
                 {data.water}
               </Text>
-              <Text style={styles.muted}>
+
+              <Text
+                style={styles.muted}
+              >
                 glasses of water
               </Text>
             </View>
 
             <TouchableOpacity
-              style={styles.waterButton}
+              style={
+                styles.waterButton
+              }
               onPress={addWater}
             >
               <Ionicons
@@ -472,18 +815,33 @@ export default function WellnessScreen() {
                 size={22}
                 color="#ffffff"
               />
-              <Text style={styles.waterButtonText}>
+
+              <Text
+                style={
+                  styles.waterButtonText
+                }
+              >
                 Add Glass
               </Text>
             </TouchableOpacity>
           </View>
 
-          <ProgressBar progress={waterProgress} />
+          <ProgressBar
+            progress={
+              waterProgress
+            }
+          />
 
-          <Text style={styles.tip}>
+          <Text
+            style={styles.tip}
+          >
             {waterProgress >= 100
               ? '💧 Hydration goal completed!'
-              : `${data.waterGoal - data.water} glasses remaining`}
+              : `${Math.max(
+                  0,
+                  data.waterGoal -
+                    data.water
+                )} glasses remaining`}
           </Text>
         </View>
 
@@ -495,7 +853,9 @@ export default function WellnessScreen() {
           subtitle="Build an active lifestyle"
         />
 
-        <View style={styles.activityGrid}>
+        <View
+          style={styles.activityGrid}
+        >
           <ActivityCard
             icon="timer-outline"
             title="Active Minutes"
@@ -505,7 +865,9 @@ export default function WellnessScreen() {
           <ActivityCard
             icon="flame-outline"
             title="Burned"
-            value={`${Math.round(data.calories)} kcal`}
+            value={`${Math.round(
+              data.calories
+            )} kcal`}
           />
 
           <ActivityCard
@@ -516,7 +878,9 @@ export default function WellnessScreen() {
         </View>
 
         <TouchableOpacity
-          style={styles.activityButton}
+          style={
+            styles.activityButton
+          }
           onPress={addActivity}
         >
           <Ionicons
@@ -525,7 +889,11 @@ export default function WellnessScreen() {
             color="#ffffff"
           />
 
-          <Text style={styles.activityButtonText}>
+          <Text
+            style={
+              styles.activityButtonText
+            }
+          >
             Add 10 Minutes Activity
           </Text>
         </TouchableOpacity>
@@ -539,60 +907,97 @@ export default function WellnessScreen() {
         />
 
         <View style={styles.card}>
-          <Text style={styles.sleepValue}>
+          <Text
+            style={styles.sleepValue}
+          >
             {data.sleepHours} hours
           </Text>
 
-          <ProgressBar progress={sleepProgress} />
+          <ProgressBar
+            progress={
+              sleepProgress
+            }
+          />
 
-          <View style={styles.sleepButtons}>
-            {[6, 7, 8, 9].map((hours) => (
-              <TouchableOpacity
-                key={hours}
-                style={[
-                  styles.sleepButton,
-                  data.sleepHours === hours &&
-                    styles.sleepButtonActive,
-                ]}
-                onPress={() =>
-                  updateData({
-                    sleepHours: hours,
-                  })
-                }
-              >
-                <Text
+          <View
+            style={
+              styles.sleepButtons
+            }
+          >
+            {[6, 7, 8, 9].map(
+              (hours) => (
+                <TouchableOpacity
+                  key={hours}
                   style={[
-                    styles.sleepButtonText,
-                    data.sleepHours === hours &&
-                      styles.sleepButtonTextActive,
+                    styles.sleepButton,
+                    data.sleepHours ===
+                      hours &&
+                      styles.sleepButtonActive,
                   ]}
+                  onPress={() =>
+                    updateData({
+                      sleepHours:
+                        hours,
+                    })
+                  }
                 >
-                  {hours}h
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text
+                    style={[
+                      styles.sleepButtonText,
+                      data.sleepHours ===
+                        hours &&
+                        styles.sleepButtonTextActive,
+                    ]}
+                  >
+                    {hours}h
+                  </Text>
+                </TouchableOpacity>
+              )
+            )}
           </View>
         </View>
 
         {/* ACHIEVEMENT */}
 
-        <View style={styles.achievementCard}>
-          <Text style={styles.achievementEmoji}>
+        <View
+          style={
+            styles.achievementCard
+          }
+        >
+          <Text
+            style={
+              styles.achievementEmoji
+            }
+          >
             🏆
           </Text>
 
-          <View style={{ flex: 1 }}>
-            <Text style={styles.achievementTitle}>
+          <View
+            style={{
+              flex: 1,
+            }}
+          >
+            <Text
+              style={
+                styles.achievementTitle
+              }
+            >
               Keep Your Streak Alive
             </Text>
 
-            <Text style={styles.achievementText}>
+            <Text
+              style={
+                styles.achievementText
+              }
+            >
               Consistency is more powerful than
               perfection. Keep moving every day!
             </Text>
           </View>
 
-          <Text style={styles.streak}>
+          <Text
+            style={styles.streak}
+          >
             🔥 {data.streak}
           </Text>
         </View>
@@ -600,6 +1005,10 @@ export default function WellnessScreen() {
     </SafeAreaView>
   );
 }
+
+/* =======================================================
+   STAT CARD
+======================================================= */
 
 function StatCard({
   icon,
@@ -615,8 +1024,12 @@ function StatCard({
   progress: number;
 }) {
   return (
-    <View style={styles.statCard}>
-      <View style={styles.statIcon}>
+    <View
+      style={styles.statCard}
+    >
+      <View
+        style={styles.statIcon}
+      >
         <Ionicons
           name={icon}
           size={22}
@@ -624,22 +1037,34 @@ function StatCard({
         />
       </View>
 
-      <Text style={styles.statTitle}>
+      <Text
+        style={styles.statTitle}
+      >
         {title}
       </Text>
 
-      <Text style={styles.statValue}>
+      <Text
+        style={styles.statValue}
+      >
         {value}
       </Text>
 
-      <Text style={styles.statSubtitle}>
+      <Text
+        style={styles.statSubtitle}
+      >
         {subtitle}
       </Text>
 
-      <ProgressBar progress={progress} />
+      <ProgressBar
+        progress={progress}
+      />
     </View>
   );
 }
+
+/* =======================================================
+   ACTIVITY CARD
+======================================================= */
 
 function ActivityCard({
   icon,
@@ -651,23 +1076,33 @@ function ActivityCard({
   value: string;
 }) {
   return (
-    <View style={styles.activityCard}>
+    <View
+      style={styles.activityCard}
+    >
       <Ionicons
         name={icon}
         size={24}
         color="#126EED"
       />
 
-      <Text style={styles.activityTitle}>
+      <Text
+        style={styles.activityTitle}
+      >
         {title}
       </Text>
 
-      <Text style={styles.activityValue}>
+      <Text
+        style={styles.activityValue}
+      >
         {value}
       </Text>
     </View>
   );
 }
+
+/* =======================================================
+   SECTION TITLE
+======================================================= */
 
 function SectionTitle({
   icon,
@@ -679,8 +1114,12 @@ function SectionTitle({
   subtitle: string;
 }) {
   return (
-    <View style={styles.sectionHeader}>
-      <View style={styles.sectionIcon}>
+    <View
+      style={styles.sectionHeader}
+    >
+      <View
+        style={styles.sectionIcon}
+      >
         <Ionicons
           name={icon}
           size={21}
@@ -689,11 +1128,15 @@ function SectionTitle({
       </View>
 
       <View>
-        <Text style={styles.sectionTitle}>
+        <Text
+          style={styles.sectionTitle}
+        >
           {title}
         </Text>
 
-        <Text style={styles.sectionSubtitle}>
+        <Text
+          style={styles.sectionSubtitle}
+        >
           {subtitle}
         </Text>
       </View>
@@ -701,20 +1144,31 @@ function SectionTitle({
   );
 }
 
+/* =======================================================
+   PROGRESS BAR
+======================================================= */
+
 function ProgressBar({
   progress,
 }: {
   progress: number;
 }) {
   return (
-    <View style={styles.progressBackground}>
+    <View
+      style={
+        styles.progressBackground
+      }
+    >
       <View
         style={[
           styles.progressFill,
           {
             width: `${Math.min(
               100,
-              Math.max(0, progress)
+              Math.max(
+                0,
+                progress
+              )
             )}%`,
           },
         ]}
@@ -722,6 +1176,10 @@ function ProgressBar({
     </View>
   );
 }
+
+/* =======================================================
+   STYLES
+======================================================= */
 
 const styles = StyleSheet.create({
   screen: {
@@ -740,11 +1198,13 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#F4F7FB',
   },
 
   loadingText: {
     fontSize: 18,
     fontWeight: '700',
+    color: '#111827',
   },
 
   header: {
@@ -817,7 +1277,8 @@ const styles = StyleSheet.create({
     width: 58,
     height: 58,
     borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    backgroundColor:
+      'rgba(255,255,255,0.18)',
     justifyContent: 'center',
     alignItems: 'center',
   },
